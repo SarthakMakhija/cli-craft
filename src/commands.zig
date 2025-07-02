@@ -3,6 +3,7 @@ const std = @import("std");
 const Command = @import("command.zig").Command;
 const CommandAlias = @import("command.zig").CommandAlias;
 const StringDistance = @import("string-distance.zig").StringDistance;
+const BestDistance = 3;
 
 const CommandAddError = error{
     CommandNameAlreadyExists,
@@ -13,7 +14,9 @@ const Commands = struct {
     commands: std.StringHashMap(Command),
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) Commands {
+    pub fn init(
+        allocator: std.mem.Allocator,
+    ) Commands {
         return .{
             .commands = std.StringHashMap(Command).init(allocator),
             .allocator = allocator,
@@ -42,7 +45,7 @@ const Commands = struct {
         var command_names = self.commands.keyIterator();
         while (command_names.next()) |command_name| {
             const distance = try StringDistance.levenshtein(self.allocator, name, command_name.*);
-            if (best_suggestion == null or distance < best_distance) {
+            if ((best_suggestion == null or distance < best_distance) and distance <= BestDistance) {
                 best_distance = distance;
                 best_suggestion = command_name.*;
             }
