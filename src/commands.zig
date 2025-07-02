@@ -111,7 +111,7 @@ test "attempt to add a command which has a parent" {
     }.run;
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
-    defer kubectl_command.action.deinit();
+    defer kubectl_command.deinit();
 
     var get_command = Command.init("get", "get objects", runnable);
     try kubectl_command.addSubcommand(&get_command);
@@ -154,7 +154,9 @@ test "add a command with a name" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable);
+    defer command.deinit();
+
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
@@ -173,7 +175,8 @@ test "add a command with a name and an alias" {
     }.run;
 
     var command = Command.init("stringer", "manipulate strings", runnable);
-    _ = command.addAliases(&[_]CommandAlias{"str"});
+    command.addAliases(&[_]CommandAlias{"str"});
+    defer command.deinit();
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -193,7 +196,8 @@ test "add a command with a name and a couple of aliases" {
     }.run;
 
     var command = Command.init("stringer", "manipulate strings", runnable);
-    _ = command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    defer command.deinit();
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -213,7 +217,8 @@ test "attempt to add a command with an existing name" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    const command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable);
+    defer command.deinit();
     try commands.add_disallow_parent(command);
 
     const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable);
@@ -233,12 +238,14 @@ test "attempt to add a command with an existing alias" {
     defer commands.deinit();
 
     var command = Command.init("stringer", "manipulate strings", runnable);
-    _ = command.addAliases(&[_]CommandAlias{"str"});
+    command.addAliases(&[_]CommandAlias{"str"});
+    defer command.deinit();
 
     try commands.add_disallow_parent(command);
 
     var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable);
-    _ = another_command.addAliases(&[_]CommandAlias{"str"});
+    another_command.addAliases(&[_]CommandAlias{"str"});
+    defer another_command.deinit();
 
     commands.add_disallow_parent(another_command) catch |err| {
         try std.testing.expectEqual(CommandAddError.CommandAliasAlreadyExists, err);

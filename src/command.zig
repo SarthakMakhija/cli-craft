@@ -27,14 +27,17 @@ pub const Command = struct {
         };
     }
 
-    pub fn addAliases(self: *Command, aliases: CommandAliases) Command {
+    pub fn addAliases(self: *Command, aliases: CommandAliases) void {
         self.aliases = aliases;
-        return self.*;
     }
 
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         subcommand.has_parent = true;
         try self.action.addSubcommand(subcommand.*);
+    }
+
+    pub fn deinit(self: *Command) void {
+        self.action.deinit();
     }
 };
 
@@ -47,7 +50,8 @@ test "initialize a command with an executable action" {
         }
     }.run;
 
-    const command = Command.init("test", "test command", runnable);
+    var command = Command.init("test", "test command", runnable);
+    defer command.deinit();
 
     try std.testing.expectEqualStrings("test", command.name);
     try std.testing.expectEqualStrings("test command", command.description);
@@ -61,7 +65,9 @@ test "initialize an executable command with an alias" {
     }.run;
 
     var command = Command.init("stringer", "manipulate strings", runnable);
-    _ = command.addAliases(&[_]CommandAlias{"str"});
+    command.addAliases(&[_]CommandAlias{"str"});
+
+    defer command.deinit();
 
     try std.testing.expect(command.aliases != null);
 
@@ -79,7 +85,9 @@ test "initialize an executable command with a couple of aliases" {
     }.run;
 
     var command = Command.init("stringer", "manipulate strings", runnable);
-    _ = command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+
+    defer command.deinit();
 
     try std.testing.expect(command.aliases != null);
 
@@ -98,7 +106,7 @@ test "initialize a parent command with subcommands" {
     }.run;
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
-    defer kubectl_command.action.deinit();
+    defer kubectl_command.deinit();
 
     var get_command = Command.init("get", "get objects", runnable);
     try kubectl_command.addSubcommand(&get_command);
