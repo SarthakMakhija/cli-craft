@@ -5,6 +5,7 @@ const std = @import("std");
 
 // Re-exporting public API structs
 pub const Command = @import("command.zig");
+pub const Commands = @import("commands.zig");
 
 test {
     // Reference all tests from modules
