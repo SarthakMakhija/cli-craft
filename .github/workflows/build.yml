@@ -21,8 +21,9 @@ jobs:
       - name: Set up Zig
         run: |
           wget https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-x86_64-linux-${{ env.ZIG_VERSION }}.tar.xz
-          echo "$(pwd)/zig-linux-x86_64-${ZIG_VERSION}" >> $GITHUB_PATH
-          zig version # Verify Zig is in PATH
+          tar -xJf zig-x86_64-linux-${{ env.ZIG_VERSION }}.tar.xz
+          echo "$(pwd)/zig-x86_64-linux-${{ env.ZIG_VERSION }}" >> $GITHUB_PATH
+          zig version
 
       - name: Run build
         run: zig build
