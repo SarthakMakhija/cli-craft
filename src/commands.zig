@@ -17,7 +17,7 @@ pub const CommandSuggestion = struct {
     distance: u16,
 };
 
-const Commands = struct {
+pub const Commands = struct {
     commands: std.StringHashMap(Command),
     allocator: std.mem.Allocator,
 
