@@ -106,3 +106,45 @@ test "add a command with a name and a couple of aliases" {
     try std.testing.expectEqualStrings("stringer", commands.get("str").?.name);
     try std.testing.expectEqualStrings("stringer", commands.get("strm").?.name);
 }
+
+test "attempt to add a command with an existing name" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    const command = Command.init("stringer", "manipulate strings", runnable);
+    try commands.add(command);
+
+    const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable);
+    commands.add(another_command) catch |err| {
+        try std.testing.expectEqual(CommandAddError.CommandNameAlreadyExists, err);
+    };
+}
+
+test "attempt to add a command with an existing alias" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    var command = Command.init("stringer", "manipulate strings", runnable);
+    _ = command.addAliases(&[_]CommandAlias{"str"});
+
+    try commands.add(command);
+
+    var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable);
+    _ = another_command.addAliases(&[_]CommandAlias{"str"});
+
+    commands.add(another_command) catch |err| {
+        try std.testing.expectEqual(CommandAddError.CommandAliasAlreadyExists, err);
+    };
+}
