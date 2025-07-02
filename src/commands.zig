@@ -1,13 +1,20 @@
 const std = @import("std");
+const Sort = std.sort;
 
 const Command = @import("command.zig").Command;
 const CommandAlias = @import("command.zig").CommandAlias;
 const StringDistance = @import("string-distance.zig").StringDistance;
+
 const BestDistance = 3;
 
-const CommandAddError = error{
+pub const CommandAddError = error{
     CommandNameAlreadyExists,
     CommandAliasAlreadyExists,
+};
+
+pub const CommandSuggestion = struct {
+    name: []const u8,
+    distance: u16,
 };
 
 const Commands = struct {
@@ -38,16 +45,26 @@ const Commands = struct {
         return self.commands.get(name);
     }
 
-    fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList([]const u8) {
-        var suggestions = std.ArrayList([]const u8).init(self.allocator);
+    fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList(CommandSuggestion) {
+        var suggestions = std.ArrayList(CommandSuggestion).init(self.allocator);
         var command_names = self.commands.keyIterator();
 
         while (command_names.next()) |command_name| {
             const distance = try StringDistance.levenshtein(self.allocator, name, command_name.*);
             if (distance <= BestDistance) {
-                try suggestions.append(command_name.*);
+                try suggestions.append(.{
+                    .name = command_name.*,
+                    .distance = distance,
+                });
             }
         }
+
+        std.mem.sort(CommandSuggestion, suggestions.items, {}, struct {
+            fn compare(_: void, first: CommandSuggestion, second: CommandSuggestion) bool {
+                return first.distance < second.distance;
+            }
+        }.compare);
+
         return suggestions;
     }
 
@@ -186,11 +203,11 @@ test "get suggestions for a command (1)" {
     defer suggestions.deinit();
 
     try std.testing.expectEqual(2, suggestions.items.len);
-    try std.testing.expectEqualStrings("str", suggestions.pop().?);
-    try std.testing.expectEqualStrings("strm", suggestions.pop().?);
+    try std.testing.expectEqualStrings("str", suggestions.pop().?.name);
+    try std.testing.expectEqualStrings("strm", suggestions.pop().?.name);
 }
 
-test "get suggestion for a command (2)" {
+test "get suggestions for a command (2)" {
     const runnable = struct {
         pub fn run() anyerror!void {
             return;
@@ -202,12 +219,12 @@ test "get suggestion for a command (2)" {
 
     try commands.add(Command.init("stringer", "manipulate strings", runnable));
     try commands.add(Command.init("str", "short for stringer", runnable));
-    try commands.add(Command.init("zig", "short for stringer", runnable));
+    try commands.add(Command.init("zig", "language", runnable));
 
     var suggestions = try commands.suggestions_for("string");
     defer suggestions.deinit();
 
     try std.testing.expectEqual(2, suggestions.items.len);
-    try std.testing.expectEqualStrings("str", suggestions.pop().?);
-    try std.testing.expectEqualStrings("stringer", suggestions.pop().?);
+    try std.testing.expectEqualStrings("str", suggestions.pop().?.name);
+    try std.testing.expectEqualStrings("stringer", suggestions.pop().?.name);
 }
