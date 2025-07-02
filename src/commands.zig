@@ -38,19 +38,17 @@ const Commands = struct {
         return self.commands.get(name);
     }
 
-    fn suggestion_for(self: Commands, name: []const u8) !?[]const u8 {
-        var best_distance: u16 = 0;
-        var best_suggestion: ?[]const u8 = null;
-
+    fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList([]const u8) {
+        var suggestions = std.ArrayList([]const u8).init(self.allocator);
         var command_names = self.commands.keyIterator();
+
         while (command_names.next()) |command_name| {
             const distance = try StringDistance.levenshtein(self.allocator, name, command_name.*);
-            if ((best_suggestion == null or distance < best_distance) and distance <= BestDistance) {
-                best_distance = distance;
-                best_suggestion = command_name.*;
+            if (distance <= BestDistance) {
+                try suggestions.append(command_name.*);
             }
         }
-        return best_suggestion;
+        return suggestions;
     }
 
     pub fn deinit(self: *Commands) void {
@@ -170,7 +168,7 @@ test "attempt to add a command with an existing alias" {
     };
 }
 
-test "get suggestion for a command (1)" {
+test "get suggestions for a command (1)" {
     const runnable = struct {
         pub fn run() anyerror!void {
             return;
@@ -184,9 +182,12 @@ test "get suggestion for a command (1)" {
     try commands.add(Command.init("str", "short for stringer", runnable));
     try commands.add(Command.init("strm", "short for stringer", runnable));
 
-    const suggestion = try commands.suggestion_for("strn");
-    try std.testing.expect(suggestion != null);
-    try std.testing.expectEqualStrings("strm", suggestion.?);
+    var suggestions = try commands.suggestions_for("strn");
+    defer suggestions.deinit();
+
+    try std.testing.expectEqual(2, suggestions.items.len);
+    try std.testing.expectEqualStrings("str", suggestions.pop().?);
+    try std.testing.expectEqualStrings("strm", suggestions.pop().?);
 }
 
 test "get suggestion for a command (2)" {
@@ -201,9 +202,12 @@ test "get suggestion for a command (2)" {
 
     try commands.add(Command.init("stringer", "manipulate strings", runnable));
     try commands.add(Command.init("str", "short for stringer", runnable));
-    try commands.add(Command.init("strm", "short for stringer", runnable));
+    try commands.add(Command.init("zig", "short for stringer", runnable));
 
-    const suggestion = try commands.suggestion_for("string");
-    try std.testing.expect(suggestion != null);
-    try std.testing.expectEqualStrings("stringer", suggestion.?);
+    var suggestions = try commands.suggestions_for("string");
+    defer suggestions.deinit();
+
+    try std.testing.expectEqual(2, suggestions.items.len);
+    try std.testing.expectEqualStrings("str", suggestions.pop().?);
+    try std.testing.expectEqualStrings("stringer", suggestions.pop().?);
 }
