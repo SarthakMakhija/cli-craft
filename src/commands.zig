@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Command = @import("command.zig").Command;
 const CommandAlias = @import("command.zig").CommandAlias;
+const StringDistance = @import("string-distance.zig").StringDistance;
 
 const CommandAddError = error{
     CommandNameAlreadyExists,
@@ -10,10 +11,12 @@ const CommandAddError = error{
 
 const Commands = struct {
     commands: std.StringHashMap(Command),
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Commands {
         return .{
             .commands = std.StringHashMap(Command).init(allocator),
+            .allocator = allocator,
         };
     }
 
@@ -30,6 +33,21 @@ const Commands = struct {
 
     pub fn get(self: Commands, name: []const u8) ?Command {
         return self.commands.get(name);
+    }
+
+    fn suggestion_for(self: Commands, name: []const u8) !?[]const u8 {
+        var best_distance: u16 = 0;
+        var best_suggestion: ?[]const u8 = null;
+
+        var command_names = self.commands.keyIterator();
+        while (command_names.next()) |command_name| {
+            const distance = try StringDistance.levenshtein(self.allocator, name, command_name.*);
+            if (best_suggestion == null or distance < best_distance) {
+                best_distance = distance;
+                best_suggestion = command_name.*;
+            }
+        }
+        return best_suggestion;
     }
 
     pub fn deinit(self: *Commands) void {
@@ -147,4 +165,42 @@ test "attempt to add a command with an existing alias" {
     commands.add(another_command) catch |err| {
         try std.testing.expectEqual(CommandAddError.CommandAliasAlreadyExists, err);
     };
+}
+
+test "get suggestion for a command (1)" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    try commands.add(Command.init("stringer", "manipulate strings", runnable));
+    try commands.add(Command.init("str", "short for stringer", runnable));
+    try commands.add(Command.init("strm", "short for stringer", runnable));
+
+    const suggestion = try commands.suggestion_for("strn");
+    try std.testing.expect(suggestion != null);
+    try std.testing.expectEqualStrings("strm", suggestion.?);
+}
+
+test "get suggestion for a command (2)" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    try commands.add(Command.init("stringer", "manipulate strings", runnable));
+    try commands.add(Command.init("str", "short for stringer", runnable));
+    try commands.add(Command.init("strm", "short for stringer", runnable));
+
+    const suggestion = try commands.suggestion_for("string");
+    try std.testing.expect(suggestion != null);
+    try std.testing.expectEqualStrings("stringer", suggestion.?);
 }
