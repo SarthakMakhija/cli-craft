@@ -1,4 +1,5 @@
 const CommandAction = @import("command-action.zig").CommandAction;
+const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
 
 pub const CommandFn = *const fn () anyerror!void;
 pub const CommandAlias = []const u8;
@@ -9,6 +10,7 @@ pub const Command = struct {
     description: []const u8,
     action: CommandAction,
     aliases: ?CommandAliases = null,
+    argument_specification: ?ArgumentSpecification = null,
     has_parent: bool = false,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn) Command {
@@ -34,6 +36,10 @@ pub const Command = struct {
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         subcommand.has_parent = true;
         try self.action.addSubcommand(subcommand.*);
+    }
+
+    pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) void {
+        self.argument_specification = specification;
     }
 
     pub fn deinit(self: *Command) void {
@@ -113,4 +119,36 @@ test "initialize a parent command with subcommands" {
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
     try std.testing.expectEqualStrings("get", kubectl_command.action.subcommands.get("get").?.name);
+}
+
+test "initialize an executable command with argument specification (1)" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("stringer", "manipulate strings", runnable);
+    command.setArgumentSpecification(ArgumentSpecification.mustBeMinimum(1));
+
+    defer command.deinit();
+
+    try std.testing.expect(command.argument_specification != null);
+    try std.testing.expectEqual(ArgumentSpecification.mustBeMinimum(1), command.argument_specification.?);
+}
+
+test "initialize an executable command with argument specification (2)" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("stringer", "manipulate strings", runnable);
+    command.setArgumentSpecification(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
+
+    defer command.deinit();
+
+    try std.testing.expect(command.argument_specification != null);
+    try std.testing.expectEqual(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5), command.argument_specification.?);
 }

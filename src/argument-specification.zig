@@ -7,7 +7,7 @@ const ArgumentSpecificationError = error{
     ArgumentsNotInEndInclusiveRange,
 };
 
-const ArgumentSpecification = union(enum) {
+pub const ArgumentSpecification = union(enum) {
     zero: usize,
     minimum: usize,
     maximum: usize,
