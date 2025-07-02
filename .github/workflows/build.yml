@@ -27,8 +27,8 @@ jobs:
           echo "$ZIG_BIN_PATH" >> $GITHUB_PATH
           zig version
 
-      - name: Run build
+      - name: Build
         run: zig build
 
-      - name: Build tests
+      - name: Run tests
         run: zig test ${{ env.TEST_ROOT_SRC }}
