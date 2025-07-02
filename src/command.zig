@@ -9,6 +9,7 @@ pub const Command = struct {
     description: []const u8,
     action: CommandAction,
     aliases: ?CommandAliases = null,
+    has_parent: bool = false,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn) Command {
         return .{
@@ -31,8 +32,9 @@ pub const Command = struct {
         return self.*;
     }
 
-    pub fn addSubcommand(self: *Command, subcommand: Command) !void {
-        try self.action.addSubcommand(subcommand);
+    pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
+        try self.action.addSubcommand(subcommand.*);
+        subcommand.has_parent = true;
     }
 };
 
@@ -98,8 +100,8 @@ test "initialize a parent command with subcommands" {
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
     defer kubectl_command.action.deinit();
 
-    const get_command = Command.init("get", "get objects", runnable);
-    try kubectl_command.addSubcommand(get_command);
+    var get_command = Command.init("get", "get objects", runnable);
+    try kubectl_command.addSubcommand(&get_command);
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
     try std.testing.expectEqualStrings("get", kubectl_command.action.subcommands.get("get").?.name);

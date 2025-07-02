@@ -8,6 +8,7 @@ const StringDistance = @import("string-distance.zig").StringDistance;
 const BestDistance = 3;
 
 pub const CommandAddError = error{
+    CommandHasAParent,
     CommandNameAlreadyExists,
     CommandAliasAlreadyExists,
 };
@@ -31,6 +32,9 @@ pub const Commands = struct {
     }
 
     pub fn add(self: *Commands, command: Command) !void {
+        if (command.has_parent) {
+            return CommandAddError.CommandHasAParent;
+        }
         const name = command.name;
         try self.ensureCommandDoesNotExist(command);
         try self.commands.put(name, command);
@@ -86,6 +90,24 @@ pub const Commands = struct {
         return;
     }
 };
+
+test "attempt to add a command which has a parent" {
+    const runnable = struct {
+        pub fn run() anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("stringer", "manipulate strings", runnable);
+    command.has_parent = true;
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    commands.add(command) catch |err| {
+        try std.testing.expectEqual(CommandAddError.CommandHasAParent, err);
+    };
+}
 
 test "add a command with a name" {
     const runnable = struct {
