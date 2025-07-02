@@ -24,7 +24,7 @@ pub const CommandAction = union(enum) {
                 return CommanAddError.CannotAddSubCommandToExecutable;
             },
             .subcommands => {
-                try self.subcommands.add(subcommand);
+                try self.subcommands.add_allow_parent(subcommand);
             },
         }
     }

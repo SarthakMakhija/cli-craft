@@ -33,8 +33,8 @@ pub const Command = struct {
     }
 
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
-        try self.action.addSubcommand(subcommand.*);
         subcommand.has_parent = true;
+        try self.action.addSubcommand(subcommand.*);
     }
 };
 
