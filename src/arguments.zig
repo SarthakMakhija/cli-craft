@@ -1,4 +1,5 @@
 const ArgumentError = error{
+    ArgumentsNotEqualToZero,
     ArgumentsLessThanMinimum,
     ArgumentsGreaterThanMaximum,
     ArgumentsNotMatchingExpected,
@@ -7,11 +8,16 @@ const ArgumentError = error{
 };
 
 const Arguments = union(enum) {
+    zero: usize,
     minimum: usize,
     maximum: usize,
     exact: usize,
     endExclusive: struct { min: usize, max: usize },
     endInclusive: struct { min: usize, max: usize },
+
+    pub fn mustBeZero() Arguments {
+        return .{ .zero = 0 };
+    }
 
     pub fn mustBeMinimum(count: usize) Arguments {
         return .{ .minimum = count };
@@ -35,6 +41,9 @@ const Arguments = union(enum) {
 
     pub fn validate(self: Arguments, argument_count: usize) !void {
         switch (self) {
+            .zero => if (argument_count != 0) {
+                return ArgumentError.ArgumentsNotEqualToZero;
+            },
             .minimum => |expected_argument_count| if (argument_count < expected_argument_count) {
                 return ArgumentError.ArgumentsLessThanMinimum;
             },
@@ -55,6 +64,12 @@ const Arguments = union(enum) {
 };
 
 const std = @import("std");
+
+test "arguments are not zero" {
+    Arguments.mustBeZero().validate(5) catch |err| {
+        try std.testing.expectEqual(ArgumentError.ArgumentsNotEqualToZero, err);
+    };
+}
 
 test "arguments are less than the minimum" {
     Arguments.mustBeMinimum(10).validate(5) catch |err| {
