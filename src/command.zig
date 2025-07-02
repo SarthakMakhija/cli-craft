@@ -1,5 +1,5 @@
-pub const CommandAlias = []const u8;
 pub const CommandFn = *const fn () anyerror!void;
+pub const CommandAlias = []const u8;
 pub const CommandAliases = []const CommandAlias;
 
 pub const Command = struct {
