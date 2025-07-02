@@ -1,0 +1,6 @@
+- [ ] Multi-OS pipeline
+- [ ] Add support for parsing commands
+- [ ] Add support for executing a leaf command
+- [ ] Add support for identifying parent command
+- [ ] Hierarchial deinit in Command
+- [ ] Add support for flags
