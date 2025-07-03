@@ -1,4 +1,6 @@
 - [ ] Multi-OS pipeline
+    - [X] Ubuntu-latest (x86_64)
+    - [X] Windows-latest (x86_64)
 - [X] Add support for parsing commands without flags
 - [X] Add support for executing a leaf command
 - [X] Add support for identifying parent command
