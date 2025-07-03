@@ -51,6 +51,10 @@ pub const Commands = struct {
     }
 
     pub fn deinit(self: *Commands) void {
+        var iterator = self.commands.valueIterator();
+        while (iterator.next()) |command| {
+            command.deinit();
+        }
         self.commands.deinit();
     }
 
@@ -147,7 +151,6 @@ test "add a command which has a child" {
     }.run;
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
-    defer kubectl_command.action.deinit();
 
     var get_command = Command.init("get", "get objects", runnable);
     try kubectl_command.addSubcommand(&get_command);
@@ -169,8 +172,7 @@ test "add a command with a name" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
-    defer command.deinit();
+    const command = Command.init("stringer", "manipulate strings", runnable);
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -191,7 +193,6 @@ test "add a command with a name and an alias" {
 
     var command = Command.init("stringer", "manipulate strings", runnable);
     command.addAliases(&[_]CommandAlias{"str"});
-    defer command.deinit();
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -212,7 +213,6 @@ test "add a command with a name and a couple of aliases" {
 
     var command = Command.init("stringer", "manipulate strings", runnable);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
-    defer command.deinit();
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -232,8 +232,7 @@ test "attempt to add a command with an existing name" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
-    defer command.deinit();
+    const command = Command.init("stringer", "manipulate strings", runnable);
     try commands.add_disallow_parent(command);
 
     const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable);
@@ -252,7 +251,6 @@ test "attempt to add a command with an existing alias" {
 
     var command = Command.init("stringer", "manipulate strings", runnable);
     command.addAliases(&[_]CommandAlias{"str"});
-    defer command.deinit();
 
     try commands.add_disallow_parent(command);
 
@@ -321,8 +319,7 @@ test "execute a command" {
         }
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable);
-    defer command.deinit();
+    const command = Command.init("add", "add numbers", runnable);
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -344,7 +341,6 @@ test "execute a command with a subcommand" {
     }.run;
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
-    defer kubectl_command.action.deinit();
 
     var get_command = Command.init("get", "get objects", runnable);
     try kubectl_command.addSubcommand(&get_command);
@@ -369,7 +365,6 @@ test "attempt to execute a command with mismatch in argument specification" {
 
     var command = Command.init("add", "add numbers", runnable);
     command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
-    defer command.deinit();
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();

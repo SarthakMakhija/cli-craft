@@ -10,7 +10,7 @@
 - [ ] Multi-OS pipeline
     - [X] Ubuntu-latest (x86_64)
     - [X] Windows-latest (x86_64)
-- [ ] Hierarchical deinit in Command
+- [X] Hierarchical deinit in Commands
 - [ ] Support other properties in command like usage
 - [ ] Support help command
 - [ ] Refer other properties from cobra
