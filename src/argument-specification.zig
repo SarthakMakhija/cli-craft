@@ -1,4 +1,4 @@
-const ArgumentSpecificationError = error{
+pub const ArgumentSpecificationError = error{
     ArgumentsNotEqualToZero,
     ArgumentsLessThanMinimum,
     ArgumentsGreaterThanMaximum,

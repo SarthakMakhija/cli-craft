@@ -117,6 +117,9 @@ pub const Commands = struct {
     }
 };
 
+const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
+const ArgumentSpecificationError = @import("argument-specification.zig").ArgumentSpecificationError;
+
 test "attempt to add a command which has a parent" {
     const runnable = struct {
         pub fn run(_: CommandFnArguments) anyerror!void {
@@ -355,4 +358,24 @@ test "execute a command with a subcommand" {
     try commands.execute(&arguments);
 
     try std.testing.expectEqualStrings("pods", get_command_result);
+}
+
+test "attempt to execute a command with mismatch in argument specification" {
+    const runnable = struct {
+        pub fn run(_: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable);
+    command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
+    defer command.deinit();
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    try commands.add_disallow_parent(command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "6", "3" });
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, commands.execute(&arguments));
 }
