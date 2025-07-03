@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - main
+      - windows-build
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
     env: 
       ZIG_VERSION: "0.14.1" 
       SOURCE_DIR: "src"
@@ -18,7 +24,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Zig
+      - name: Set up Zig on Linux
+        if: runner.os == 'Linux' # This step only runs on Linux runners
         run: |
           wget https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-x86_64-linux-${{ env.ZIG_VERSION }}.tar.xz
           tar -xJf zig-x86_64-linux-${{ env.ZIG_VERSION }}.tar.xz
@@ -26,6 +33,30 @@ jobs:
           export PATH="$ZIG_BIN_PATH:$PATH"
           echo "$ZIG_BIN_PATH" >> $GITHUB_PATH
           zig version
+        shell: bash
+
+      - name: Set up Zig on Windows
+        if: runner.os == 'Windows' # This step only runs on Windows runners
+        run: |
+          $zigArchive = "zig-x86_64-windows-${{ env.ZIG_VERSION }}.zip"
+          $zigUrl = "https://ziglang.org/download/${{ env.ZIG_VERSION }}/$zigArchive"
+          
+          Write-Host "Downloading Zig from $zigUrl"
+          Invoke-WebRequest -Uri $zigUrl -OutFile $zigArchive
+          
+          Write-Host "Expanding Zig archive"
+          Expand-Archive -Path $zigArchive -DestinationPath . -Force
+          
+          $zigBinPath = (Get-Item "zig-x86_64-windows-${{ env.ZIG_VERSION }}").FullName
+          Write-Host "Adding Zig to PATH: $zigBinPath"
+          
+          # Add to current session's PATH
+          $env:PATH = "$zigBinPath;$env:PATH"
+          # Add to GITHUB_PATH for subsequent steps
+          Add-Content -Path $env:GITHUB_PATH -Value $zigBinPath
+          
+          zig version
+        shell: pwsh
 
       - name: Build
         run: zig build
