@@ -82,7 +82,5 @@ test "attempt to get the next argument after consuming the only argument" {
 }
 
 test "attempt to skip the first argument when there is no argument" {
-    _ = Arguments.initWithArgs(&[_][:0]const u8{}) catch |err| {
-        try std.testing.expectEqual(ArgumentsError.NoArgumentsProvided, err);
-    };
+    try std.testing.expectError(ArgumentsError.NoArgumentsProvided, Arguments.initWithArgs(&[_][:0]const u8{}));
 }

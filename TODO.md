@@ -4,4 +4,4 @@
 - [ ] Add support for identifying parent command
 - [ ] Hierarchical deinit in Command
 - [ ] Add support for flags
-- [ ] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
+- [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned

@@ -119,9 +119,7 @@ test "attempt to add a command which has a parent" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    commands.add_disallow_parent(get_command) catch |err| {
-        try std.testing.expectEqual(CommandAddError.CommandHasAParent, err);
-    };
+    try std.testing.expectError(CommandAddError.CommandHasAParent, commands.add_disallow_parent(get_command));
 }
 
 test "add a command which has a child" {
@@ -222,9 +220,7 @@ test "attempt to add a command with an existing name" {
     try commands.add_disallow_parent(command);
 
     const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable);
-    commands.add_disallow_parent(another_command) catch |err| {
-        try std.testing.expectEqual(CommandAddError.CommandNameAlreadyExists, err);
-    };
+    try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_parent(another_command));
 }
 
 test "attempt to add a command with an existing alias" {
@@ -247,9 +243,7 @@ test "attempt to add a command with an existing alias" {
     another_command.addAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
-    commands.add_disallow_parent(another_command) catch |err| {
-        try std.testing.expectEqual(CommandAddError.CommandAliasAlreadyExists, err);
-    };
+    try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_parent(another_command));
 }
 
 test "get suggestions for a command (1)" {

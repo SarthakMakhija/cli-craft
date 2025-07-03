@@ -66,49 +66,33 @@ pub const ArgumentSpecification = union(enum) {
 const std = @import("std");
 
 test "arguments are not zero" {
-    ArgumentSpecification.mustBeZero().validate(5) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsNotEqualToZero, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotEqualToZero, ArgumentSpecification.mustBeZero().validate(5));
 }
 
 test "arguments are less than the minimum" {
-    ArgumentSpecification.mustBeMinimum(10).validate(5) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsLessThanMinimum, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsLessThanMinimum, ArgumentSpecification.mustBeMinimum(10).validate(5));
 }
 
 test "arguments are greater than the maximum" {
-    ArgumentSpecification.mustBeMaximum(3).validate(5) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, ArgumentSpecification.mustBeMaximum(3).validate(5));
 }
 
 test "arguments are not matching the exact" {
-    ArgumentSpecification.mustBeExact(3).validate(5) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsNotMatchingExpected, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotMatchingExpected, ArgumentSpecification.mustBeExact(3).validate(2));
 }
 
 test "arguments are not in end-exclusive range, given argument count is equal to the maximum argument of the range" {
-    ArgumentSpecification.mustBeInEndExclusiveRange(2, 5).validate(5) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 5).validate(5));
 }
 
 test "arguments are not in end-exclusive range, given argument count is less than the minimum argument of the range" {
-    ArgumentSpecification.mustBeInEndExclusiveRange(2, 5).validate(1) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 5).validate(1));
 }
 
 test "arguments are not in end-inclusive range, given argument count is greater than the maximum argument of the range" {
-    ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(6) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(6));
 }
 
 test "arguments are not in end-inclusive range, given argument count is less than the minimum argument of the range" {
-    ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(1) catch |err| {
-        try std.testing.expectEqual(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, err);
-    };
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(1));
 }
