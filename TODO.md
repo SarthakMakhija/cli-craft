@@ -1,7 +1,8 @@
 - [ ] Multi-OS pipeline
-- [ ] Add support for parsing commands
-- [ ] Add support for executing a leaf command
-- [ ] Add support for identifying parent command
+- [X] Add support for parsing commands without flags
+- [X] Add support for executing a leaf command
+- [X] Add support for identifying parent command
 - [ ] Hierarchical deinit in Command
 - [ ] Add support for flags
+- [ ] Add support for executing commands with flags
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
