@@ -21,3 +21,6 @@
 - [ ] An entrypoint of the cli-craft library
 - [ ] An examples folder
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
+- [ ] README
+- [ ] Code documentation
+- [ ] Release the library
