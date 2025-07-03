@@ -4,16 +4,16 @@ const ArgumentsError = error{
     NoArgumentsProvided,
 };
 
-const Arguments = struct {
+pub const Arguments = struct {
     argument_iterator: ?std.process.ArgIterator = null,
-    argument_slice: ?[]const [:0]const u8 = null,
+    argument_slice: ?[]const []const u8 = null,
     index: usize = 0,
 
     pub fn init() Arguments {
         return .{ .argument_iterator = std.process.ArgIterator.init() };
     }
 
-    pub fn initWithArgs(args: []const [:0]const u8) !Arguments {
+    pub fn initWithArgs(args: []const []const u8) !Arguments {
         if (args.len == 0) {
             return ArgumentsError.NoArgumentsProvided;
         }
@@ -28,7 +28,7 @@ const Arguments = struct {
         }
     }
 
-    pub fn next(self: *Arguments) ?([:0]const u8) {
+    pub fn next(self: *Arguments) ?([]const u8) {
         if (self.argument_iterator) |*iterator| {
             return iterator.next();
         } else if (self.argument_slice) |arguments| {
@@ -46,7 +46,7 @@ const Arguments = struct {
 };
 
 test "next argument from iterator" {
-    var arguments = try Arguments.initWithArgs(&[_][:0]const u8{"kubectl"});
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{"kubectl"});
     const argument = arguments.next();
 
     try std.testing.expect(argument != null);
@@ -54,7 +54,7 @@ test "next argument from iterator" {
 }
 
 test "next argument after skipping the first argument" {
-    var arguments = try Arguments.initWithArgs(&[_][:0]const u8{ "kubectl", "get" });
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get" });
     arguments.skipFirst();
 
     const argument = arguments.next();
@@ -64,7 +64,7 @@ test "next argument after skipping the first argument" {
 }
 
 test "attempt to get the next argument after skipping the first argument" {
-    var arguments = try Arguments.initWithArgs(&[_][:0]const u8{"kubectl"});
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{"kubectl"});
     arguments.skipFirst();
 
     const argument = arguments.next();
@@ -73,7 +73,7 @@ test "attempt to get the next argument after skipping the first argument" {
 }
 
 test "attempt to get the next argument after consuming the only argument" {
-    var arguments = try Arguments.initWithArgs(&[_][:0]const u8{"kubectl"});
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{"kubectl"});
 
     _ = arguments.next();
     const argument = arguments.next();
