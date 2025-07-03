@@ -2,7 +2,8 @@ const CommandAction = @import("command-action.zig").CommandAction;
 const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
 const Arguments = @import("arguments.zig").Arguments;
 
-pub const CommandFn = *const fn () anyerror!void;
+pub const CommandFnArguments = [][]const u8;
+pub const CommandFn = *const fn (arguments: CommandFnArguments) anyerror!void;
 pub const CommandAlias = []const u8;
 pub const CommandAliases = []const CommandAlias;
 
@@ -52,16 +53,22 @@ pub const Command = struct {
         self.action.deinit();
     }
 
-    fn execute(self: Command, arguments: *Arguments) anyerror!void {
+    fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
         switch (self.action) {
             .executable => |executable_fn| {
-                return executable_fn();
+                const remaining_arguments = try arguments.all(allocator);
+                defer remaining_arguments.deinit();
+
+                if (self.argument_specification) |argument_specification| {
+                    try argument_specification.validate(remaining_arguments.items.len);
+                }
+                return executable_fn(remaining_arguments.items);
             },
             .subcommands => |sub_commands| {
                 const subcommand_name = arguments.next() orelse return CommandExecutionError.NoSubcommandProvided;
                 const command = sub_commands.get(subcommand_name) orelse return CommandExecutionError.SubcommandNotAddedToParentCommand;
 
-                return command.execute(arguments);
+                return command.execute(arguments, allocator);
             },
         }
     }
@@ -71,7 +78,7 @@ const std = @import("std");
 
 test "initialize a command with an executable action" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -85,7 +92,7 @@ test "initialize a command with an executable action" {
 
 test "initialize an executable command with an alias" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -105,7 +112,7 @@ test "initialize an executable command with an alias" {
 
 test "initialize an executable command with a couple of aliases" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -126,7 +133,7 @@ test "initialize an executable command with a couple of aliases" {
 
 test "initialize a parent command with subcommands" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -143,7 +150,7 @@ test "initialize a parent command with subcommands" {
 
 test "initialize an executable command with argument specification (1)" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -159,7 +166,7 @@ test "initialize an executable command with argument specification (1)" {
 
 test "initialize an executable command with argument specification (2)" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -173,13 +180,16 @@ test "initialize an executable command with argument specification (2)" {
     try std.testing.expectEqual(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5), command.argument_specification.?);
 }
 
-var add_command_executed = false;
-var get_command_executed = false;
+var add_command_result: u8 = undefined;
+var get_command_result: []const u8 = undefined;
 
 test "execute a command with an executable action" {
     const runnable = struct {
-        pub fn run() anyerror!void {
-            add_command_executed = true;
+        pub fn run(arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            add_command_result = augend + addend;
             return;
         }
     }.run;
@@ -187,16 +197,17 @@ test "execute a command with an executable action" {
     var command = Command.init("add", "add numbers", runnable);
     defer command.deinit();
 
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{"add"});
-    try command.execute(&arguments);
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
+    arguments.skipFirst();
 
-    try std.testing.expect(add_command_executed);
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result);
 }
 
 test "execute a command with a subcommand" {
     const runnable = struct {
-        pub fn run() anyerror!void {
-            get_command_executed = true;
+        pub fn run(arguments: CommandFnArguments) anyerror!void {
+            get_command_result = arguments[0];
             return;
         }
     }.run;
@@ -209,17 +220,16 @@ test "execute a command with a subcommand" {
 
     try kubectl_command.addSubcommand(&get_command);
 
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get" });
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments);
-
-    try std.testing.expect(get_command_executed);
+    try kubectl_command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqualStrings("pods", get_command_result);
 }
 
 test "attempt to execute a command with a subcommand but with incorrect command name from the argument" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -235,5 +245,5 @@ test "attempt to execute a command with a subcommand but with incorrect command 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "delete" });
     arguments.skipFirst();
 
-    try std.testing.expectError(CommandExecutionError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments));
+    try std.testing.expectError(CommandExecutionError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, std.testing.allocator));
 }

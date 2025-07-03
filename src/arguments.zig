@@ -24,8 +24,8 @@ pub const Arguments = struct {
     pub fn skipFirst(self: *Arguments) void {
         if (self.argument_iterator) |*iterator| {
             _ = iterator.next();
-        } else if (self.argument_slice) |arguments| {
-            self.argument_slice = arguments[1..];
+        } else if (self.argument_slice) |_| {
+            self.index += 1;
         }
     }
 
@@ -46,21 +46,11 @@ pub const Arguments = struct {
     }
 
     pub fn all(self: *Arguments, allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
-        if (self.argument_iterator) |*iterator| {
-            var collector = std.ArrayList([]const u8).init(allocator);
-            while (iterator.next()) |argument| {
-                try collector.append(argument);
-            }
-            return collector;
-        } else if (self.argument_slice) |arguments| {
-            var collector = std.ArrayList([]const u8).init(allocator);
-            for (arguments) |argument| {
-                try collector.append(argument);
-            }
-            return collector;
-        } else {
-            return ArgumentsError.InvalidArgumentsSetup;
+        var collector = std.ArrayList([]const u8).init(allocator);
+        while (self.next()) |argument| {
+            try collector.append(argument);
         }
+        return collector;
     }
 };
 
@@ -126,4 +116,26 @@ test "collect all arguments from iterator (2)" {
     try std.testing.expectEqualStrings("add", collector.items[0]);
     try std.testing.expectEqualStrings("2", collector.items[1]);
     try std.testing.expectEqualStrings("5", collector.items[2]);
+}
+
+test "collect all arguments from iterator (3)" {
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
+    arguments.skipFirst();
+
+    const collector = try arguments.all(std.testing.allocator);
+    defer collector.deinit();
+
+    try std.testing.expect(collector.items.len == 2);
+    try std.testing.expectEqualStrings("2", collector.items[0]);
+    try std.testing.expectEqualStrings("5", collector.items[1]);
+}
+
+test "collect all arguments from iterator (4)" {
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{"print"});
+    arguments.skipFirst();
+
+    const collector = try arguments.all(std.testing.allocator);
+    defer collector.deinit();
+
+    try std.testing.expect(collector.items.len == 0);
 }

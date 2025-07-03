@@ -2,6 +2,7 @@ const std = @import("std");
 const Sort = std.sort;
 
 const Command = @import("command.zig").Command;
+const CommandFnArguments = @import("command.zig").CommandFnArguments;
 const CommandAlias = @import("command.zig").CommandAlias;
 const StringDistance = @import("string-distance.zig").StringDistance;
 
@@ -105,7 +106,7 @@ pub const Commands = struct {
 
 test "attempt to add a command which has a parent" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -124,7 +125,7 @@ test "attempt to add a command which has a parent" {
 
 test "add a command which has a child" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -147,7 +148,7 @@ test "add a command which has a child" {
 
 test "add a command with a name" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -167,7 +168,7 @@ test "add a command with a name" {
 
 test "add a command with a name and an alias" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -188,7 +189,7 @@ test "add a command with a name and an alias" {
 
 test "add a command with a name and a couple of aliases" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -207,7 +208,7 @@ test "add a command with a name and a couple of aliases" {
 
 test "attempt to add a command with an existing name" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -225,7 +226,7 @@ test "attempt to add a command with an existing name" {
 
 test "attempt to add a command with an existing alias" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -248,7 +249,7 @@ test "attempt to add a command with an existing alias" {
 
 test "get suggestions for a command (1)" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -270,7 +271,7 @@ test "get suggestions for a command (1)" {
 
 test "get suggestions for a command (2)" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;

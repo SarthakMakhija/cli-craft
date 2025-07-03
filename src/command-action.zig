@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Command = @import("command.zig").Command;
+const CommandFnArguments = @import("command.zig").CommandFnArguments;
 const Commands = @import("commands.zig").Commands;
 const CommandFn = @import("command.zig").CommandFn;
 
@@ -39,7 +40,7 @@ pub const CommandAction = union(enum) {
 
 test "add an executable" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -52,7 +53,7 @@ test "add an executable" {
 
 test "add a sub-command" {
     const runnable = struct {
-        pub fn run() anyerror!void {
+        pub fn run(_: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
