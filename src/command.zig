@@ -49,11 +49,7 @@ pub const Command = struct {
         self.argument_specification = specification;
     }
 
-    pub fn deinit(self: *Command) void {
-        self.action.deinit();
-    }
-
-    fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
+    pub fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
         switch (self.action) {
             .executable => |executable_fn| {
                 const remaining_arguments = try arguments.all(allocator);
@@ -71,6 +67,10 @@ pub const Command = struct {
                 return command.execute(arguments, allocator);
             },
         }
+    }
+
+    pub fn deinit(self: *Command) void {
+        self.action.deinit();
     }
 };
 

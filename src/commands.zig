@@ -4,6 +4,7 @@ const Sort = std.sort;
 const Command = @import("command.zig").Command;
 const CommandFnArguments = @import("command.zig").CommandFnArguments;
 const CommandAlias = @import("command.zig").CommandAlias;
+const Arguments = @import("arguments.zig").Arguments;
 const StringDistance = @import("string-distance.zig").StringDistance;
 
 const BestDistance = 3;
@@ -12,6 +13,11 @@ pub const CommandAddError = error{
     CommandHasAParent,
     CommandNameAlreadyExists,
     CommandAliasAlreadyExists,
+};
+
+pub const CommandExecutionError = error{
+    MissingCommandNameToExecute,
+    CommandNotAdded,
 };
 
 pub const CommandSuggestion = struct {
@@ -64,6 +70,13 @@ pub const Commands = struct {
                 try self.commands.put(alias, command);
             }
         }
+    }
+
+    fn execute(self: Commands, arguments: *Arguments) !void {
+        const command_name = arguments.next() orelse return CommandExecutionError.MissingCommandNameToExecute;
+        const command = self.get(command_name) orelse return CommandExecutionError.CommandNotAdded;
+
+        return try command.execute(arguments, self.allocator);
     }
 
     fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList(CommandSuggestion) {
@@ -289,4 +302,57 @@ test "get suggestions for a command (2)" {
     try std.testing.expectEqual(2, suggestions.items.len);
     try std.testing.expectEqualStrings("str", suggestions.pop().?.name);
     try std.testing.expectEqualStrings("stringer", suggestions.pop().?.name);
+}
+
+var add_command_result: u8 = undefined;
+var get_command_result: []const u8 = undefined;
+
+test "execute a command" {
+    const runnable = struct {
+        pub fn run(arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            add_command_result = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable);
+    defer command.deinit();
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    try commands.add_disallow_parent(command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
+    try commands.execute(&arguments);
+
+    try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute a command with a subcommand" {
+    const runnable = struct {
+        pub fn run(arguments: CommandFnArguments) anyerror!void {
+            get_command_result = arguments[0];
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
+    defer kubectl_command.action.deinit();
+
+    var get_command = Command.init("get", "get objects", runnable);
+    try kubectl_command.addSubcommand(&get_command);
+
+    var commands = Commands.init(std.testing.allocator);
+    defer commands.deinit();
+
+    try commands.add_disallow_parent(kubectl_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
+    try commands.execute(&arguments);
+
+    try std.testing.expectEqualStrings("pods", get_command_result);
 }
