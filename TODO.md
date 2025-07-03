@@ -1,10 +1,23 @@
-- [ ] Multi-OS pipeline
-    - [X] Ubuntu-latest (x86_64)
-    - [X] Windows-latest (x86_64)
+- [X] Add support for defining a command
+- [X] Add support for adding a command
+- [X] Add support for getting a command based on name
+- [X] Add support for getting a command based on name
+- [X] Add support for validating arguments of a command
 - [X] Add support for parsing commands without flags
 - [X] Add support for executing a leaf command
 - [X] Add support for identifying parent command
+- [X] Add support for providing suggestions for a misspelled command
+- [ ] Multi-OS pipeline
+    - [X] Ubuntu-latest (x86_64)
+    - [X] Windows-latest (x86_64)
 - [ ] Hierarchical deinit in Command
+- [ ] Support other properties in command like usage
+- [ ] Support help command
+- [ ] Refer other properties from cobra
+- [ ] Add support for logging/printing
+- [ ] Add errors on console 
 - [ ] Add support for flags
 - [ ] Add support for executing commands with flags
+- [ ] An entrypoint of the cli-craft library
+- [ ] An examples folder
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
