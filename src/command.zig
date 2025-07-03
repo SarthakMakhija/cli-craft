@@ -18,6 +18,7 @@ pub const Command = struct {
     action: CommandAction,
     aliases: ?CommandAliases = null,
     argument_specification: ?ArgumentSpecification = null,
+    deprecated_message: ?[]const u8 = null,
     has_parent: bool = false,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn) Command {
@@ -49,6 +50,11 @@ pub const Command = struct {
         self.argument_specification = specification;
     }
 
+    pub fn markDeprecated(self: *Command, deprecated_message: []const u8) void {
+        self.deprecated_message = deprecated_message;
+    }
+
+    //TODO: print deprecated message if the command is deprecated
     pub fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
         switch (self.action) {
             .executable => |executable_fn| {
@@ -88,6 +94,20 @@ test "initialize a command with an executable action" {
 
     try std.testing.expectEqualStrings("test", command.name);
     try std.testing.expectEqualStrings("test command", command.description);
+}
+
+test "initialize a command with an executable action and mark it as deprecated" {
+    const runnable = struct {
+        pub fn run(_: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("test", "test command", runnable);
+    command.markDeprecated("This command is deprecated");
+    defer command.deinit();
+
+    try std.testing.expectEqualStrings("This command is deprecated", command.deprecated_message.?);
 }
 
 test "initialize an executable command with an alias" {
