@@ -84,6 +84,11 @@ pub const Flag = struct {
         };
     }
 
+    pub fn looksLikeFlagName(name: []const u8) bool {
+        return (name.len == 2 and name[0] == '-' and name[1] != '-') or
+            (name.len > 2 and name[0] == '-' and name[1] == '-');
+    }
+
     pub fn builder(name: []const u8, description: []const u8) FlagBuilder {
         return FlagBuilder.init(name, description);
     }
@@ -206,6 +211,30 @@ test "build a non-persistent flag" {
         .build();
 
     try std.testing.expect(namespace_flag.persistent == false);
+}
+
+test "looks like a flag name 1" {
+    try std.testing.expect(Flag.looksLikeFlagName("--verbose"));
+}
+
+test "looks like a flag name 2" {
+    try std.testing.expect(Flag.looksLikeFlagName("-v"));
+}
+
+test "does not look like a flag name 1" {
+    try std.testing.expect(Flag.looksLikeFlagName("-") == false);
+}
+
+test "does not look like a flag name 2" {
+    try std.testing.expect(Flag.looksLikeFlagName("--") == false);
+}
+
+test "does not look like a flag name 3" {
+    try std.testing.expect(Flag.looksLikeFlagName("-vv") == false);
+}
+
+test "does not look like a flag name 4" {
+    try std.testing.expect(Flag.looksLikeFlagName("argument") == false);
 }
 
 test "attempt to add a flag with an existing name" {
