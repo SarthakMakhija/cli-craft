@@ -58,7 +58,7 @@ test "add a sub-command" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable);
+    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     var command_action = try CommandAction.initSubcommands(std.testing.allocator);
     defer command_action.deinit();
 

@@ -1,6 +1,8 @@
 const CommandAction = @import("command-action.zig").CommandAction;
 const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
 const Arguments = @import("arguments.zig").Arguments;
+const Flags = @import("flags.zig").Flags;
+const Flag = @import("flags.zig").Flag;
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (arguments: CommandFnArguments) anyerror!void;
@@ -15,16 +17,19 @@ pub const CommandExecutionError = error{
 pub const Command = struct {
     name: []const u8,
     description: []const u8,
+    allocator: std.mem.Allocator,
     action: CommandAction,
     aliases: ?CommandAliases = null,
     argument_specification: ?ArgumentSpecification = null,
     deprecated_message: ?[]const u8 = null,
     has_parent: bool = false,
+    flags: ?Flags = null,
 
-    pub fn init(name: []const u8, description: []const u8, executable: CommandFn) Command {
+    pub fn init(name: []const u8, description: []const u8, executable: CommandFn, allocator: std.mem.Allocator) Command {
         return .{
             .name = name,
             .description = description,
+            .allocator = allocator,
             .action = CommandAction.initExecutable(executable),
         };
     }
@@ -33,6 +38,7 @@ pub const Command = struct {
         return .{
             .name = name,
             .description = description,
+            .allocator = allocator,
             .action = try CommandAction.initSubcommands(allocator),
         };
     }
@@ -48,6 +54,13 @@ pub const Command = struct {
 
     pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) void {
         self.argument_specification = specification;
+    }
+
+    pub fn addLocalFlag(self: *Command, flag: Flag) !void {
+        if (self.flags == null) {
+            self.flags = Flags.init(self.allocator);
+        }
+        try self.flags.?.addFlag(flag);
     }
 
     pub fn markDeprecated(self: *Command, deprecated_message: []const u8) void {
@@ -77,6 +90,9 @@ pub const Command = struct {
 
     pub fn deinit(self: *Command) void {
         self.action.deinit();
+        if (self.flags) |*flags| {
+            flags.deinit();
+        }
     }
 };
 
@@ -89,7 +105,7 @@ test "initialize a command with an executable action" {
         }
     }.run;
 
-    var command = Command.init("test", "test command", runnable);
+    var command = Command.init("test", "test command", runnable, std.testing.allocator);
     defer command.deinit();
 
     try std.testing.expectEqualStrings("test", command.name);
@@ -103,11 +119,42 @@ test "initialize a command with an executable action and mark it as deprecated" 
         }
     }.run;
 
-    var command = Command.init("test", "test command", runnable);
+    var command = Command.init("test", "test command", runnable, std.testing.allocator);
     command.markDeprecated("This command is deprecated");
     defer command.deinit();
 
     try std.testing.expectEqualStrings("This command is deprecated", command.deprecated_message.?);
+}
+
+test "initialize a command with a local flag" {
+    const runnable = struct {
+        pub fn run(_: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output").build();
+
+    var command = Command.init("test", "test command", runnable, std.testing.allocator);
+    try command.addLocalFlag(verbose_flag);
+
+    defer command.deinit();
+
+    try std.testing.expect(command.flags != null);
+    try std.testing.expect(command.flags.?.contains("verbose"));
+}
+
+test "initialize a command without any flags" {
+    const runnable = struct {
+        pub fn run(_: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("test", "test command", runnable, std.testing.allocator);
+    defer command.deinit();
+
+    try std.testing.expect(command.flags == null);
 }
 
 test "initialize an executable command with an alias" {
@@ -117,7 +164,7 @@ test "initialize an executable command with an alias" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
     defer command.deinit();
@@ -137,7 +184,7 @@ test "initialize an executable command with a couple of aliases" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
@@ -161,7 +208,7 @@ test "initialize a parent command with subcommands" {
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable);
+    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
@@ -175,7 +222,7 @@ test "initialize an executable command with argument specification (1)" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeMinimum(1));
 
     defer command.deinit();
@@ -191,7 +238,7 @@ test "initialize an executable command with argument specification (2)" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
 
     defer command.deinit();
@@ -214,7 +261,7 @@ test "execute a command with an executable action" {
         }
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable);
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
@@ -235,7 +282,7 @@ test "execute a command with a subcommand" {
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable);
+    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     defer get_command.deinit();
 
     try kubectl_command.addSubcommand(&get_command);
@@ -257,7 +304,7 @@ test "attempt to execute a command with a subcommand but with incorrect command 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable);
+    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     defer get_command.deinit();
 
     try kubectl_command.addSubcommand(&get_command);

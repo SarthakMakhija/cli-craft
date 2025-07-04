@@ -134,7 +134,7 @@ test "attempt to add a command which has a parent" {
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable);
+    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     var commands = Commands.init(std.testing.allocator);
@@ -152,7 +152,7 @@ test "add a command which has a child" {
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
 
-    var get_command = Command.init("get", "get objects", runnable);
+    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     var commands = Commands.init(std.testing.allocator);
@@ -172,7 +172,7 @@ test "add a command with a name" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable);
+    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -191,7 +191,7 @@ test "add a command with a name and an alias" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
     var commands = Commands.init(std.testing.allocator);
@@ -211,7 +211,7 @@ test "add a command with a name and a couple of aliases" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     var commands = Commands.init(std.testing.allocator);
@@ -232,10 +232,10 @@ test "attempt to add a command with an existing name" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    const command = Command.init("stringer", "manipulate strings", runnable);
+    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     try commands.add_disallow_parent(command);
 
-    const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable);
+    const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, std.testing.allocator);
     try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_parent(another_command));
 }
 
@@ -249,12 +249,12 @@ test "attempt to add a command with an existing alias" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    var command = Command.init("stringer", "manipulate strings", runnable);
+    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
     try commands.add_disallow_parent(command);
 
-    var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable);
+    var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, std.testing.allocator);
     another_command.addAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
@@ -271,9 +271,9 @@ test "get suggestions for a command (1)" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(Command.init("stringer", "manipulate strings", runnable));
-    try commands.add_disallow_parent(Command.init("str", "short for stringer", runnable));
-    try commands.add_disallow_parent(Command.init("strm", "short for stringer", runnable));
+    try commands.add_disallow_parent(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
+    try commands.add_disallow_parent(Command.init("str", "short for stringer", runnable, std.testing.allocator));
+    try commands.add_disallow_parent(Command.init("strm", "short for stringer", runnable, std.testing.allocator));
 
     var suggestions = try commands.suggestions_for("strn");
     defer suggestions.deinit();
@@ -293,9 +293,9 @@ test "get suggestions for a command (2)" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(Command.init("stringer", "manipulate strings", runnable));
-    try commands.add_disallow_parent(Command.init("str", "short for stringer", runnable));
-    try commands.add_disallow_parent(Command.init("zig", "language", runnable));
+    try commands.add_disallow_parent(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
+    try commands.add_disallow_parent(Command.init("str", "short for stringer", runnable, std.testing.allocator));
+    try commands.add_disallow_parent(Command.init("zig", "language", runnable, std.testing.allocator));
 
     var suggestions = try commands.suggestions_for("string");
     defer suggestions.deinit();
@@ -319,7 +319,7 @@ test "execute a command" {
         }
     }.run;
 
-    const command = Command.init("add", "add numbers", runnable);
+    const command = Command.init("add", "add numbers", runnable, std.testing.allocator);
 
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
@@ -342,7 +342,7 @@ test "execute a command with a subcommand" {
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
 
-    var get_command = Command.init("get", "get objects", runnable);
+    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     var commands = Commands.init(std.testing.allocator);
@@ -363,7 +363,7 @@ test "attempt to execute a command with mismatch in argument specification" {
         }
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable);
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
 
     var commands = Commands.init(std.testing.allocator);
