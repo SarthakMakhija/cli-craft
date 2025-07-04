@@ -8,6 +8,8 @@ pub const FlagAddError = error{
 pub const FlagValueError = error{
     InvalidBooleanFormat,
     InvalidIntegerFormat,
+    FlagTypeMismatch,
+    FlagNotFound,
 };
 
 pub const Flags = struct {
@@ -172,6 +174,55 @@ pub const FlagBuilder = struct {
 
     pub fn build(self: FlagBuilder) Flag {
         return Flag.create(self.name, self.short_name, self.description, self.flag_type, self.default_value, self.persistent);
+    }
+};
+
+pub const ParsedFlag = struct {
+    name: []const u8,
+    value: FlagValue,
+
+    pub fn init(name: []const u8, value: FlagValue) ParsedFlag {
+        return .{ .name = name, .value = value };
+    }
+};
+
+pub const ParsedFlags = struct {
+    flags: std.StringHashMap(ParsedFlag),
+
+    pub fn init(allocator: std.mem.Allocator) ParsedFlags {
+        return .{ .flags = std.StringHashMap(ParsedFlag).init(allocator) };
+    }
+
+    pub fn add(self: *ParsedFlags, flag: ParsedFlag) !void {
+        try self.flags.put(flag.name, flag);
+    }
+
+    pub fn getBoolean(self: ParsedFlags, name: []const u8) !bool {
+        const flag = self.flags.get(name) orelse return FlagValueError.FlagNotFound;
+        switch (flag.value) {
+            .boolean => return flag.value.boolean,
+            else => return FlagValueError.FlagTypeMismatch,
+        }
+    }
+
+    pub fn getInt64(self: ParsedFlags, name: []const u8) !i64 {
+        const flag = self.flags.get(name) orelse return FlagValueError.FlagNotFound;
+        switch (flag.value) {
+            .int64 => return flag.value.int64,
+            else => return FlagValueError.FlagTypeMismatch,
+        }
+    }
+
+    pub fn getString(self: ParsedFlags, name: []const u8) ![]const u8 {
+        const flag = self.flags.get(name) orelse return FlagValueError.FlagNotFound;
+        switch (flag.value) {
+            .string => return flag.value.string,
+            else => return FlagValueError.FlagTypeMismatch,
+        }
+    }
+
+    pub fn deinit(self: *ParsedFlags) void {
+        self.flags.deinit();
     }
 };
 
@@ -392,4 +443,70 @@ test "convert a string to string flag value" {
 
     const flag_value = try namespace_flag.toFlagValue("cli-craft");
     try std.testing.expectEqualStrings("cli-craft", flag_value.string);
+}
+
+test "build a parsed flag with name and value" {
+    const counting_flag = ParsedFlag.init("count", FlagValue.type_int64(10));
+    try std.testing.expectEqualStrings("count", counting_flag.name);
+    try std.testing.expect(counting_flag.value.int64 == 10);
+}
+
+test "add a parsed boolean flag" {
+    const verbose_flag = ParsedFlag.init("verbose", FlagValue.type_boolean(false));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.add(verbose_flag);
+    try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
+}
+
+test "add a parsed boolean flag and attempt to get an i64 flag" {
+    const verbose_flag = ParsedFlag.init("verbose", FlagValue.type_boolean(false));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.add(verbose_flag);
+    try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getInt64("verbose"));
+}
+
+test "add a parsed int64 flag" {
+    const counting_flag = ParsedFlag.init("count", FlagValue.type_int64(10));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.add(counting_flag);
+    try std.testing.expectEqual(10, try parsed_flags.getInt64("count"));
+}
+
+test "add a parsed int64 flag and attempt to get a string flag" {
+    const counting_flag = ParsedFlag.init("count", FlagValue.type_int64(10));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.add(counting_flag);
+    try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getString("count"));
+}
+
+test "add a parsed string flag" {
+    const namespace_flag = ParsedFlag.init("namespace", FlagValue.type_string("k8s"));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.add(namespace_flag);
+    try std.testing.expectEqualStrings("k8s", try parsed_flags.getString("namespace"));
+}
+
+test "add a parsed string flag and attempt to get a boolean flag" {
+    const namespace_flag = ParsedFlag.init("namespace", FlagValue.type_string("k8s"));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.add(namespace_flag);
+    try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getBoolean("namespace"));
 }
