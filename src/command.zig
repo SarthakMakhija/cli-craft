@@ -3,6 +3,7 @@ const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpec
 const Arguments = @import("arguments.zig").Arguments;
 const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
+const FlagType = @import("flags.zig").FlagType;
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (arguments: CommandFnArguments) anyerror!void;
@@ -133,7 +134,7 @@ test "initialize a command with a local flag" {
         }
     }.run;
 
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output").build();
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
 
     var command = Command.init("test", "test command", runnable, std.testing.allocator);
     try command.addLocalFlag(verbose_flag);

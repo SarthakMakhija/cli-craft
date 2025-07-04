@@ -43,7 +43,13 @@ pub const Flags = struct {
     }
 };
 
-pub const FlagValue = union(enum) {
+pub const FlagType = enum {
+    boolean,
+    int64,
+    string,
+};
+
+pub const FlagValue = union(FlagType) {
     boolean: bool,
     int64: i64,
     string: []const u8,
@@ -65,6 +71,7 @@ pub const Flag = struct {
     name: []const u8,
     short_name: ?u8,
     description: []const u8,
+    flag_type: FlagType,
     default_value: ?FlagValue,
     persistent: bool,
 
@@ -72,6 +79,7 @@ pub const Flag = struct {
         name: []const u8,
         short_name: ?u8,
         description: []const u8,
+        flag_type: FlagType,
         default_value: ?FlagValue,
         persistent: bool,
     ) Flag {
@@ -79,6 +87,7 @@ pub const Flag = struct {
             .name = name,
             .short_name = short_name,
             .description = description,
+            .flag_type = flag_type,
             .default_value = default_value,
             .persistent = persistent,
         };
@@ -89,8 +98,8 @@ pub const Flag = struct {
             (name.len > 2 and name[0] == '-' and name[1] == '-');
     }
 
-    pub fn builder(name: []const u8, description: []const u8) FlagBuilder {
-        return FlagBuilder.init(name, description);
+    pub fn builder(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
+        return FlagBuilder.init(name, description, flag_type);
     }
 };
 
@@ -99,12 +108,14 @@ pub const FlagBuilder = struct {
     description: []const u8,
     short_name: ?u8 = null,
     default_value: ?FlagValue = null,
+    flag_type: FlagType,
     persistent: bool = false,
 
-    fn init(name: []const u8, description: []const u8) FlagBuilder {
+    fn init(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
         return .{
             .name = name,
             .description = description,
+            .flag_type = flag_type,
         };
     }
 
@@ -127,22 +138,23 @@ pub const FlagBuilder = struct {
     }
 
     pub fn build(self: FlagBuilder) Flag {
-        return Flag.create(self.name, self.short_name, self.description, self.default_value, self.persistent);
+        return Flag.create(self.name, self.short_name, self.description, self.flag_type, self.default_value, self.persistent);
     }
 };
 
 test "build a boolean flag with name and description" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output")
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
         .build();
 
     try std.testing.expectEqualStrings("verbose", verbose_flag.name);
     try std.testing.expectEqualStrings("Enable verbose output", verbose_flag.description);
+    try std.testing.expect(verbose_flag.flag_type == FlagType.boolean);
     try std.testing.expect(verbose_flag.default_value == null);
     try std.testing.expect(verbose_flag.short_name == null);
 }
 
 test "build a boolean flag with short name and default value" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output")
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
         .withShortName('v')
         .withDefaultValue(FlagValue.type_boolean(false))
         .build();
@@ -154,17 +166,18 @@ test "build a boolean flag with short name and default value" {
 }
 
 test "build a int64 flag with name and description" {
-    const count_flag = Flag.builder("count", "Count items")
+    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
         .build();
 
     try std.testing.expectEqualStrings("count", count_flag.name);
     try std.testing.expectEqualStrings("Count items", count_flag.description);
+    try std.testing.expect(count_flag.flag_type == FlagType.int64);
     try std.testing.expect(count_flag.default_value == null);
     try std.testing.expect(count_flag.short_name == null);
 }
 
 test "build a int64 flag with short name and default value" {
-    const count_flag = Flag.builder("count", "Count items")
+    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
         .withDefaultValue(FlagValue.type_int64(10))
         .withShortName('c')
         .build();
@@ -177,7 +190,7 @@ test "build a int64 flag with short name and default value" {
 }
 
 test "build a string flag with name and description" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .build();
 
     try std.testing.expectEqualStrings("namespace", namespace_flag.name);
@@ -187,7 +200,7 @@ test "build a string flag with name and description" {
 }
 
 test "build a string flag with short name and default value" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .withShortName('n')
         .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
@@ -195,11 +208,12 @@ test "build a string flag with short name and default value" {
     try std.testing.expectEqualStrings("namespace", namespace_flag.name);
     try std.testing.expectEqualStrings("Define the namespace", namespace_flag.description);
     try std.testing.expectEqualStrings("default_namespace", namespace_flag.default_value.?.string);
+    try std.testing.expect(namespace_flag.flag_type == FlagType.string);
     try std.testing.expectEqual('n', namespace_flag.short_name.?);
 }
 
 test "build a persistent flag" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .markPersistent()
         .build();
 
@@ -207,7 +221,7 @@ test "build a persistent flag" {
 }
 
 test "build a non-persistent flag" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .build();
 
     try std.testing.expect(namespace_flag.persistent == false);
@@ -238,7 +252,7 @@ test "does not look like a flag name 4" {
 }
 
 test "attempt to add a flag with an existing name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .withShortName('n')
         .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
@@ -248,7 +262,7 @@ test "attempt to add a flag with an existing name" {
 
     try flags.addFlag(namespace_flag);
 
-    const namespace_counting_flag = Flag.builder("namespace", "Count namespaces")
+    const namespace_counting_flag = Flag.builder("namespace", "Count namespaces", FlagType.int64)
         .withShortName('n')
         .build();
 
@@ -256,7 +270,7 @@ test "attempt to add a flag with an existing name" {
 }
 
 test "attempt to add a flag with an existing short name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .withShortName('n')
         .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
@@ -266,7 +280,7 @@ test "attempt to add a flag with an existing short name" {
 
     try flags.addFlag(namespace_flag);
 
-    const namespace_counting_flag = Flag.builder("counter", "Count namespaces")
+    const namespace_counting_flag = Flag.builder("counter", "Count namespaces", FlagType.int64)
         .withShortName('n')
         .build();
 
@@ -274,7 +288,7 @@ test "attempt to add a flag with an existing short name" {
 }
 
 test "add a flag and check its existence by name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .withShortName('n')
         .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
@@ -288,7 +302,7 @@ test "add a flag and check its existence by name" {
 }
 
 test "add a flag and check its existence by short name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .withShortName('n')
         .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
