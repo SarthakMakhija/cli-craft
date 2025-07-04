@@ -201,6 +201,13 @@ test "build a persistent flag" {
     try std.testing.expect(namespace_flag.persistent);
 }
 
+test "build a non-persistent flag" {
+    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+        .build();
+
+    try std.testing.expect(namespace_flag.persistent == false);
+}
+
 test "attempt to add a flag with an existing name" {
     const namespace_flag = Flag.builder("namespace", "Define the namespace")
         .withShortName('n')
