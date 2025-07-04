@@ -66,18 +66,21 @@ pub const Flag = struct {
     short_name: ?u8,
     description: []const u8,
     default_value: ?FlagValue,
+    persistent: bool,
 
     fn create(
         name: []const u8,
         short_name: ?u8,
         description: []const u8,
         default_value: ?FlagValue,
+        persistent: bool,
     ) Flag {
         return .{
             .name = name,
             .short_name = short_name,
             .description = description,
             .default_value = default_value,
+            .persistent = persistent,
         };
     }
 
@@ -91,6 +94,7 @@ pub const FlagBuilder = struct {
     description: []const u8,
     short_name: ?u8 = null,
     default_value: ?FlagValue = null,
+    persistent: bool = false,
 
     fn init(name: []const u8, description: []const u8) FlagBuilder {
         return .{
@@ -111,13 +115,14 @@ pub const FlagBuilder = struct {
         return new_self;
     }
 
+    pub fn markPersistent(self: FlagBuilder) FlagBuilder {
+        var new_self = self;
+        new_self.persistent = true;
+        return new_self;
+    }
+
     pub fn build(self: FlagBuilder) Flag {
-        return Flag.create(
-            self.name,
-            self.short_name,
-            self.description,
-            self.default_value,
-        );
+        return Flag.create(self.name, self.short_name, self.description, self.default_value, self.persistent);
     }
 };
 
@@ -186,6 +191,14 @@ test "build a string flag with short name and default value" {
     try std.testing.expectEqualStrings("Define the namespace", namespace_flag.description);
     try std.testing.expectEqualStrings("default_namespace", namespace_flag.default_value.?.string);
     try std.testing.expectEqual('n', namespace_flag.short_name.?);
+}
+
+test "build a persistent flag" {
+    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+        .markPersistent()
+        .build();
+
+    try std.testing.expect(namespace_flag.persistent);
 }
 
 test "attempt to add a flag with an existing name" {
