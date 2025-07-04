@@ -1,5 +1,10 @@
 const std = @import("std");
 
+pub const FlagAddError = error{
+    FlagNameAlreadyExists,
+    FlagShortNameAlreadyExists,
+};
+
 pub const Flags = struct {
     flags: std.StringHashMap(Flag),
     short_name_to_long_name: std.AutoHashMap(u8, []const u8),
@@ -12,6 +17,15 @@ pub const Flags = struct {
     }
 
     pub fn addFlag(self: *Flags, flag: Flag) !void {
+        if (self.flags.contains(flag.name)) {
+            return FlagAddError.FlagNameAlreadyExists;
+        }
+        if (flag.short_name) |short_name| {
+            if (self.short_name_to_long_name.contains(short_name)) {
+                return FlagAddError.FlagShortNameAlreadyExists;
+            }
+        }
+
         try self.flags.put(flag.name, flag);
         if (flag.short_name) |short_name| {
             try self.short_name_to_long_name.put(short_name, flag.name);
@@ -172,6 +186,42 @@ test "build a string flag with short name and default value" {
     try std.testing.expectEqualStrings("Define the namespace", namespace_flag.description);
     try std.testing.expectEqualStrings("default_namespace", namespace_flag.default_value.?.string);
     try std.testing.expectEqual('n', namespace_flag.short_name.?);
+}
+
+test "attempt to add a flag with an existing name" {
+    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+        .withShortName('n')
+        .withDefaultValue(FlagValue.type_string("default_namespace"))
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(namespace_flag);
+
+    const namespace_counting_flag = Flag.builder("namespace", "Count namespaces")
+        .withShortName('n')
+        .build();
+
+    try std.testing.expectError(FlagAddError.FlagNameAlreadyExists, flags.addFlag(namespace_counting_flag));
+}
+
+test "attempt to add a flag with an existing short name" {
+    const namespace_flag = Flag.builder("namespace", "Define the namespace")
+        .withShortName('n')
+        .withDefaultValue(FlagValue.type_string("default_namespace"))
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(namespace_flag);
+
+    const namespace_counting_flag = Flag.builder("counter", "Count namespaces")
+        .withShortName('n')
+        .build();
+
+    try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.addFlag(namespace_counting_flag));
 }
 
 test "add a flag and check its existence by name" {
