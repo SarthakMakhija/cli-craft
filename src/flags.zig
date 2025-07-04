@@ -5,6 +5,11 @@ pub const FlagAddError = error{
     FlagShortNameAlreadyExists,
 };
 
+pub const FlagValueError = error{
+    InvalidBooleanFormat,
+    InvalidIntegerFormat,
+};
+
 pub const Flags = struct {
     flags: std.StringHashMap(Flag),
     short_name_to_long_name: std.AutoHashMap(u8, []const u8),
@@ -100,13 +105,34 @@ pub const Flag = struct {
         };
     }
 
+    pub fn builder(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
+        return FlagBuilder.init(name, description, flag_type);
+    }
+
     pub fn looksLikeFlagName(name: []const u8) bool {
         return (name.len == 2 and name[0] == '-' and name[1] != '-') or
             (name.len > 2 and name[0] == '-' and name[1] == '-');
     }
 
-    pub fn builder(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
-        return FlagBuilder.init(name, description, flag_type);
+    pub fn toFlagValue(self: Flag, value: []const u8) !FlagValue {
+        return switch (self.flag_type) {
+            .boolean => {
+                if (std.mem.eql(u8, value, "true")) {
+                    return FlagValue.type_boolean(true);
+                } else if (std.mem.eql(u8, value, "false")) {
+                    return FlagValue.type_boolean(false);
+                } else {
+                    return FlagValueError.InvalidBooleanFormat;
+                }
+            },
+            .int64 => {
+                const parsed = std.fmt.parseInt(i64, value, 10) catch {
+                    return FlagValueError.InvalidIntegerFormat;
+                };
+                return FlagValue.type_int64(parsed);
+            },
+            .string => return FlagValue.type_string(value),
+        };
     }
 };
 
@@ -334,4 +360,36 @@ test "check the existence of a non-existing flag by short name" {
     defer flags.deinit();
 
     try std.testing.expect(flags.get("v") == null);
+}
+
+test "convert a string to true boolean flag value" {
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
+        .build();
+
+    const flag_value = try verbose_flag.toFlagValue("true");
+    try std.testing.expect(flag_value.boolean);
+}
+
+test "convert a string to false boolean flag value" {
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
+        .build();
+
+    const flag_value = try verbose_flag.toFlagValue("false");
+    try std.testing.expect(flag_value.boolean == false);
+}
+
+test "convert a string to int64 flag value" {
+    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
+        .build();
+
+    const flag_value = try count_flag.toFlagValue("123");
+    try std.testing.expectEqual(123, flag_value.int64);
+}
+
+test "convert a string to string flag value" {
+    const namespace_flag = Flag.builder("namespace", "Define namespace", FlagType.string)
+        .build();
+
+    const flag_value = try namespace_flag.toFlagValue("cli-craft");
+    try std.testing.expectEqualStrings("cli-craft", flag_value.string);
 }
