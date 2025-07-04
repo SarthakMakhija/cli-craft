@@ -32,9 +32,16 @@ pub const Flags = struct {
         }
     }
 
-    pub fn contains(self: *Flags, flag_name: []const u8) bool {
-        return self.flags.contains(flag_name) or
-            (flag_name.len > 0 and self.short_name_to_long_name.contains(flag_name[0]));
+    pub fn get(self: Flags, flag_name: []const u8) ?Flag {
+        return self.flags.get(flag_name) orelse {
+            if (flag_name.len > 0) {
+                const long_name = self.short_name_to_long_name.get(flag_name[0]);
+                if (long_name) |name| {
+                    return self.flags.get(name);
+                }
+            }
+            return null;
+        };
     }
 
     pub fn deinit(self: *Flags) void {
@@ -298,7 +305,7 @@ test "add a flag and check its existence by name" {
 
     try flags.addFlag(namespace_flag);
 
-    try std.testing.expect(flags.contains("namespace"));
+    try std.testing.expectEqualStrings("namespace", flags.get("namespace").?.name);
 }
 
 test "add a flag and check its existence by short name" {
@@ -312,19 +319,19 @@ test "add a flag and check its existence by short name" {
 
     try flags.addFlag(namespace_flag);
 
-    try std.testing.expect(flags.contains("n"));
+    try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
 }
 
 test "check the existence of a non-existing flag by name" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try std.testing.expect(flags.contains("verbose") == false);
+    try std.testing.expect(flags.get("n") == null);
 }
 
 test "check the existence of a non-existing flag by short name" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try std.testing.expect(flags.contains("v") == false);
+    try std.testing.expect(flags.get("v") == null);
 }

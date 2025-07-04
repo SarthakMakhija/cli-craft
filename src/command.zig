@@ -142,7 +142,7 @@ test "initialize a command with a local flag" {
     defer command.deinit();
 
     try std.testing.expect(command.flags != null);
-    try std.testing.expect(command.flags.?.contains("verbose"));
+    try std.testing.expectEqualStrings("verbose", command.flags.?.get("verbose").?.name);
 }
 
 test "initialize a command without any flags" {
