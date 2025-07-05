@@ -16,8 +16,11 @@
 - [ ] Refer other properties from cobra
 - [ ] Add support for logging/printing
 - [ ] Add errors on console 
-- [ ] Add support for flags
-- [ ] Add support for executing commands with flags
+- [X] Add support for local flags
+- [X] Add support for executing commands with local flags
+- [ ] Add support for persistent flags
+- [ ] Add support for executing commands with local flags
+- [ ] Add support for passing flags with default value
 - [ ] Revalidate the arguments of run function in a command
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [ ] An entrypoint of the cli-craft library
