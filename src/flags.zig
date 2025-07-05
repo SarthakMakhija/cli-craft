@@ -354,6 +354,11 @@ test "normalize a flag name with short name" {
     try std.testing.expectEqualStrings("v", normalized);
 }
 
+test "normalize a flag name which is already normalized or is not a flag" {
+    const normalized = Flag.normalizeFlagName("pods");
+    try std.testing.expectEqualStrings("pods", normalized);
+}
+
 test "attempt to add a flag with an existing name" {
     const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
         .withShortName('n')
