@@ -4,15 +4,21 @@ const Arguments = @import("arguments.zig").Arguments;
 const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
+const FlagValue = @import("flags.zig").FlagValue;
+const FlagValueError = @import("flags.zig").FlagValueError;
+
+const ParsedFlags = @import("flags.zig").ParsedFlags;
+const ParsedFlag = @import("flags.zig").ParsedFlag;
 
 pub const CommandFnArguments = [][]const u8;
-pub const CommandFn = *const fn (arguments: CommandFnArguments) anyerror!void;
+pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
 pub const CommandAlias = []const u8;
 pub const CommandAliases = []const CommandAlias;
 
 pub const CommandExecutionError = error{
     NoSubcommandProvided,
     SubcommandNotAddedToParentCommand,
+    NoFlagsAddedToCommand,
 };
 
 pub const Command = struct {
@@ -72,13 +78,48 @@ pub const Command = struct {
     pub fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
         switch (self.action) {
             .executable => |executable_fn| {
-                const remaining_arguments = try arguments.all(allocator);
-                defer remaining_arguments.deinit();
+                var parsed_flags = ParsedFlags.init(allocator);
+                defer parsed_flags.deinit();
+
+                var parsed_arguments = std.ArrayList([]const u8).init(allocator);
+                defer parsed_arguments.deinit();
+
+                var last_flag: ?Flag = null;
+                while (arguments.next()) |argument| {
+                    if (Flag.looksLikeFlagName(argument)) {
+                        if (self.flags == null) {
+                            return CommandExecutionError.NoFlagsAddedToCommand;
+                        }
+                        if (last_flag) |flag| {
+                            if (flag.flag_type != FlagType.boolean) {
+                                return FlagValueError.FlagValueNotProvided;
+                            } else {
+                                try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                            }
+                        }
+                        const flag_name = Flag.normalizeFlagName(argument);
+                        last_flag = self.flags.?.get(flag_name) orelse return FlagValueError.FlagNotFound;
+                    } else if (last_flag) |flag| {
+                        try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
+                        last_flag = null;
+                    } else {
+                        try parsed_arguments.append(argument);
+                        last_flag = null;
+                    }
+                }
+
+                if (last_flag) |flag| {
+                    if (flag.flag_type != FlagType.boolean) {
+                        return FlagValueError.FlagValueNotProvided;
+                    }
+                    try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                    last_flag = null;
+                }
 
                 if (self.argument_specification) |argument_specification| {
-                    try argument_specification.validate(remaining_arguments.items.len);
+                    try argument_specification.validate(parsed_arguments.items.len);
                 }
-                return executable_fn(remaining_arguments.items);
+                return executable_fn(parsed_flags, parsed_arguments.items);
             },
             .subcommands => |sub_commands| {
                 const subcommand_name = arguments.next() orelse return CommandExecutionError.NoSubcommandProvided;
@@ -101,7 +142,7 @@ const std = @import("std");
 
 test "initialize a command with an executable action" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -115,7 +156,7 @@ test "initialize a command with an executable action" {
 
 test "initialize a command with an executable action and mark it as deprecated" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -129,7 +170,7 @@ test "initialize a command with an executable action and mark it as deprecated" 
 
 test "initialize a command with a local flag" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -147,7 +188,7 @@ test "initialize a command with a local flag" {
 
 test "initialize a command without any flags" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -160,7 +201,7 @@ test "initialize a command without any flags" {
 
 test "initialize an executable command with an alias" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -180,7 +221,7 @@ test "initialize an executable command with an alias" {
 
 test "initialize an executable command with a couple of aliases" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -201,7 +242,7 @@ test "initialize an executable command with a couple of aliases" {
 
 test "initialize a parent command with subcommands" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -218,7 +259,7 @@ test "initialize a parent command with subcommands" {
 
 test "initialize an executable command with argument specification (1)" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -234,7 +275,7 @@ test "initialize an executable command with argument specification (1)" {
 
 test "initialize an executable command with argument specification (2)" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -250,10 +291,11 @@ test "initialize an executable command with argument specification (2)" {
 
 var add_command_result: u8 = undefined;
 var get_command_result: []const u8 = undefined;
+var add_command_result_via_flags: i64 = undefined;
 
-test "execute a command with an executable action" {
+test "execute a command with an executable command" {
     const runnable = struct {
-        pub fn run(arguments: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             const augend = try std.fmt.parseInt(u8, arguments[0], 10);
             const addend = try std.fmt.parseInt(u8, arguments[1], 10);
 
@@ -274,7 +316,7 @@ test "execute a command with an executable action" {
 
 test "execute a command with a subcommand" {
     const runnable = struct {
-        pub fn run(arguments: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             get_command_result = arguments[0];
             return;
         }
@@ -297,7 +339,7 @@ test "execute a command with a subcommand" {
 
 test "attempt to execute a command with a subcommand but with incorrect command name from the argument" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -314,4 +356,106 @@ test "attempt to execute a command with a subcommand but with incorrect command 
     arguments.skipFirst();
 
     try std.testing.expectError(CommandExecutionError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, std.testing.allocator));
+}
+
+test "execute a command with an executable command having a boolean flag without explicit value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            try std.testing.expect(try flags.getBoolean("verbose"));
+
+            add_command_result = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
+    try command.addLocalFlag(verbose_flag);
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose" });
+    arguments.skipFirst();
+
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute a command with an executable command having a boolean flag with explicit value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+
+            add_command_result = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
+    try command.addLocalFlag(verbose_flag);
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "false" });
+    arguments.skipFirst();
+
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute a command with an executable command having flags and no arguments" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            const augend = try flags.getInt64("augend");
+            const addend = try flags.getInt64("addend");
+
+            add_command_result_via_flags = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addLocalFlag(Flag.builder("augend", "First argument to add", FlagType.int64).build());
+    try command.addLocalFlag(Flag.builder("addend", "Second argument to add", FlagType.int64).build());
+
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "--augend", "2", "--addend", "5" });
+    arguments.skipFirst();
+
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result_via_flags);
+}
+
+test "execute a command with an executable command having a few flags and arguments" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+            try std.testing.expect(try flags.getBoolean("priority") == true);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+
+            add_command_result = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+    try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
+    try command.addLocalFlag(Flag.builder("namespace", "Define namespace", FlagType.string).withShortName('n').build());
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "false", "-n", "cli-craft", "--priority" });
+    arguments.skipFirst();
+
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result);
 }

@@ -10,6 +10,7 @@ pub const FlagValueError = error{
     InvalidIntegerFormat,
     FlagTypeMismatch,
     FlagNotFound,
+    FlagValueNotProvided,
 };
 
 pub const Flags = struct {

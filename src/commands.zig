@@ -6,6 +6,7 @@ const CommandFnArguments = @import("command.zig").CommandFnArguments;
 const CommandAlias = @import("command.zig").CommandAlias;
 const Arguments = @import("arguments.zig").Arguments;
 const StringDistance = @import("string-distance.zig").StringDistance;
+const ParsedFlags = @import("flags.zig").ParsedFlags;
 
 const BestDistance = 3;
 
@@ -126,7 +127,7 @@ const ArgumentSpecificationError = @import("argument-specification.zig").Argumen
 
 test "attempt to add a command which has a parent" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -145,7 +146,7 @@ test "attempt to add a command which has a parent" {
 
 test "add a command which has a child" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -167,7 +168,7 @@ test "add a command which has a child" {
 
 test "add a command with a name" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -186,7 +187,7 @@ test "add a command with a name" {
 
 test "add a command with a name and an alias" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -206,7 +207,7 @@ test "add a command with a name and an alias" {
 
 test "add a command with a name and a couple of aliases" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -224,7 +225,7 @@ test "add a command with a name and a couple of aliases" {
 
 test "attempt to add a command with an existing name" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -241,7 +242,7 @@ test "attempt to add a command with an existing name" {
 
 test "attempt to add a command with an existing alias" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -263,7 +264,7 @@ test "attempt to add a command with an existing alias" {
 
 test "get suggestions for a command (1)" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -285,7 +286,7 @@ test "get suggestions for a command (1)" {
 
 test "get suggestions for a command (2)" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
@@ -310,7 +311,7 @@ var get_command_result: []const u8 = undefined;
 
 test "execute a command" {
     const runnable = struct {
-        pub fn run(arguments: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             const augend = try std.fmt.parseInt(u8, arguments[0], 10);
             const addend = try std.fmt.parseInt(u8, arguments[1], 10);
 
@@ -334,7 +335,7 @@ test "execute a command" {
 
 test "execute a command with a subcommand" {
     const runnable = struct {
-        pub fn run(arguments: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             get_command_result = arguments[0];
             return;
         }
@@ -358,7 +359,7 @@ test "execute a command with a subcommand" {
 
 test "attempt to execute a command with mismatch in argument specification" {
     const runnable = struct {
-        pub fn run(_: CommandFnArguments) anyerror!void {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
         }
     }.run;
