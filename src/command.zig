@@ -91,10 +91,14 @@ pub const Command = struct {
                             return CommandExecutionError.NoFlagsAddedToCommand;
                         }
                         if (last_flag) |flag| {
-                            if (flag.flag_type != FlagType.boolean) {
-                                return FlagValueError.FlagValueNotProvided;
-                            } else {
+                            if (flag.flag_type == FlagType.boolean) {
                                 try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                            } else {
+                                if (flag.default_value) |default_value| {
+                                    try parsed_flags.add(ParsedFlag.init(flag.name, default_value));
+                                } else {
+                                    return FlagValueError.FlagValueNotProvided;
+                                }
                             }
                         }
                         const flag_name = Flag.normalizeFlagName(argument);
@@ -454,6 +458,34 @@ test "execute a command with an executable command having a few flags and argume
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "false", "-n", "cli-craft", "--priority" });
+    arguments.skipFirst();
+
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute a command with flags having default value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            try std.testing.expect(try flags.getBoolean("verbose"));
+            try std.testing.expect(try flags.getBoolean("priority"));
+            try std.testing.expectEqual(10, try flags.getInt64("timeout"));
+
+            add_command_result = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+    try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
+    try command.addLocalFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "-t", "--priority" });
     arguments.skipFirst();
 
     try command.execute(&arguments, std.testing.allocator);
