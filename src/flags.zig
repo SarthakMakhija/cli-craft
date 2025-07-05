@@ -116,6 +116,15 @@ pub const Flag = struct {
             (name.len > 2 and name[0] == '-' and name[1] == '-');
     }
 
+    pub fn normalizeFlagName(name: []const u8) []const u8 {
+        if (name.len > 2 and name[0] == '-' and name[1] == '-') {
+            return name[2..];
+        } else if (name.len > 1 and name[0] == '-' and name[1] != '-') {
+            return name[1..];
+        }
+        return name;
+    }
+
     pub fn toFlagValue(self: Flag, value: []const u8) !FlagValue {
         return switch (self.flag_type) {
             .boolean => {
@@ -333,6 +342,16 @@ test "does not look like a flag name 3" {
 
 test "does not look like a flag name 4" {
     try std.testing.expect(Flag.looksLikeFlagName("argument") == false);
+}
+
+test "normalize a flag name with long name" {
+    const normalized = Flag.normalizeFlagName("--verbose");
+    try std.testing.expectEqualStrings("verbose", normalized);
+}
+
+test "normalize a flag name with short name" {
+    const normalized = Flag.normalizeFlagName("-v");
+    try std.testing.expectEqualStrings("v", normalized);
 }
 
 test "attempt to add a flag with an existing name" {
