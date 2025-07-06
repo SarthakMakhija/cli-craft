@@ -18,9 +18,9 @@
 - [ ] Add errors on console 
 - [X] Add support for local flags
 - [X] Add support for executing commands with local flags
+- [X] Add support for passing flags with default value
 - [ ] Add support for persistent flags
-- [ ] Add support for executing commands with local flags
-- [ ] Add support for passing flags with default value
+- [ ] Add support for executing commands with persistent flags
 - [ ] Revalidate the arguments of run function in a command
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [ ] An entrypoint of the cli-craft library
