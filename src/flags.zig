@@ -52,6 +52,19 @@ pub const Flags = struct {
         };
     }
 
+    pub fn addFlagsWithDefaultValueTo(self: Flags, destination: *ParsedFlags) !void {
+        var iterator = self.flags.iterator();
+        while (iterator.next()) |entry| {
+            const flag: Flag = entry.value_ptr.*;
+            if (flag.default_value) |default_value| {
+                if (destination.flags.contains(flag.name)) {
+                    continue;
+                }
+                try destination.add(ParsedFlag.init(flag.name, default_value));
+            }
+        }
+    }
+
     pub fn deinit(self: *Flags) void {
         self.flags.deinit();
         self.short_name_to_long_name.deinit();
@@ -534,4 +547,70 @@ test "add a parsed string flag and attempt to get a boolean flag" {
 
     try parsed_flags.add(namespace_flag);
     try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getBoolean("namespace"));
+}
+
+test "add a parsed flag with default value" {
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64)
+        .withDefaultValue(FlagValue.type_int64(25))
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(timeout_flag);
+
+    try flags.addFlagsWithDefaultValueTo(&parsed_flags);
+
+    try std.testing.expect(parsed_flags.flags.contains("timeout"));
+    try std.testing.expectEqual(25, try parsed_flags.getInt64("timeout"));
+}
+
+test "attempt to add a parsed flag with default value when the flag is already present" {
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    try parsed_flags.add(ParsedFlag.init("timeout", FlagValue.type_int64(30)));
+    defer parsed_flags.deinit();
+
+    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64)
+        .withDefaultValue(FlagValue.type_int64(25))
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(timeout_flag);
+
+    try flags.addFlagsWithDefaultValueTo(&parsed_flags);
+
+    try std.testing.expect(parsed_flags.flags.contains("timeout"));
+    try std.testing.expectEqual(30, try parsed_flags.getInt64("timeout"));
+}
+
+test "add a couple of parsed flags with default value" {
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64)
+        .withDefaultValue(FlagValue.type_int64(25))
+        .build();
+
+    const verbose_flag = Flag.builder("verbose", "Display verbose output", FlagType.boolean)
+        .withDefaultValue(FlagValue.type_boolean(false))
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(timeout_flag);
+    try flags.addFlag(verbose_flag);
+
+    try flags.addFlagsWithDefaultValueTo(&parsed_flags);
+
+    try std.testing.expect(parsed_flags.flags.contains("timeout"));
+    try std.testing.expectEqual(25, try parsed_flags.getInt64("timeout"));
+
+    try std.testing.expect(parsed_flags.flags.contains("verbose"));
+    try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
 }
