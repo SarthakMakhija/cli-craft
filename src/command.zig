@@ -120,6 +120,10 @@ pub const Command = struct {
                     last_flag = null;
                 }
 
+                if (self.flags) |flags| {
+                    try flags.addFlagsWithDefaultValueTo(&parsed_flags);
+                }
+
                 if (self.argument_specification) |argument_specification| {
                     try argument_specification.validate(parsed_arguments.items.len);
                 }
@@ -486,6 +490,34 @@ test "execute a command with flags having default value" {
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "-t", "--priority" });
+    arguments.skipFirst();
+
+    try command.execute(&arguments, std.testing.allocator);
+    try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute a command with flags having default value but with command line containing a different value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
+            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
+
+            try std.testing.expect(try flags.getBoolean("verbose"));
+            try std.testing.expect(try flags.getBoolean("priority"));
+            try std.testing.expectEqual(23, try flags.getInt64("timeout"));
+
+            add_command_result = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+    try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
+    try command.addLocalFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "-t", "23", "--priority" });
     arguments.skipFirst();
 
     try command.execute(&arguments, std.testing.allocator);

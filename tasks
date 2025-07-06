@@ -1,0 +1,7 @@
+// get argument one by one
+// see if the argument is a flag, by checking if it starts with a dash or a double dash
+// if it is a flag, get the flag name
+// and check if it exists in the command's flags
+// if it does not exist, return an error
+// if it exists, get the flag value and store it in the flags map
+// if the argument is not a flag, it is an argument (because we are already in an executable command)
