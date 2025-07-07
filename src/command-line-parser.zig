@@ -240,7 +240,7 @@ test "parse a command line having a few flags and arguments" {
     try std.testing.expectEqualStrings("cli-craft", try parsed_flags.getString("namespace"));
 }
 
-test "parse a command line with flags having default value but with command line containing a different valuee" {
+test "parse a command line with flags having default value but with command line containing a different value" {
     var flags = Flags.init(std.testing.allocator);
     try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
     try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build());
@@ -265,5 +265,55 @@ test "parse a command line with flags having default value but with command line
 
     try std.testing.expect(try parsed_flags.getBoolean("verbose") == true);
     try std.testing.expect(try parsed_flags.getBoolean("priority") == true);
+    try std.testing.expectEqual(23, try parsed_flags.getInt64("timeout"));
+}
+
+test "parse a command line with flags for a command which has child commands" {
+    var flags = Flags.init(std.testing.allocator);
+    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--verbose", "-t", "23", "get", "pods" });
+    arguments.skipFirst();
+
+    const parser = CommandLineParser.init(&arguments, flags);
+    try parser.parse(&parsed_flags, &parsed_arguments, true);
+
+    try std.testing.expectEqualStrings("get", parsed_arguments.pop().?);
+
+    try std.testing.expect(try parsed_flags.getBoolean("verbose") == true);
+    try std.testing.expectEqual(23, try parsed_flags.getInt64("timeout"));
+}
+
+test "parse a command line with flags containing explicit boolean value for a command which has child commands" {
+    var flags = Flags.init(std.testing.allocator);
+    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--verbose", "false", "-t", "23", "get", "pods" });
+    arguments.skipFirst();
+
+    const parser = CommandLineParser.init(&arguments, flags);
+    try parser.parse(&parsed_flags, &parsed_arguments, true);
+
+    try std.testing.expectEqualStrings("get", parsed_arguments.pop().?);
+
+    try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
     try std.testing.expectEqual(23, try parsed_flags.getInt64("timeout"));
 }
