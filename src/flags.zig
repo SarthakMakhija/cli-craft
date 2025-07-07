@@ -14,18 +14,18 @@ pub const FlagValueError = error{
 };
 
 pub const Flags = struct {
-    flags: std.StringHashMap(Flag),
+    flag_by_name: std.StringHashMap(Flag),
     short_name_to_long_name: std.AutoHashMap(u8, []const u8),
 
     pub fn init(allocator: std.mem.Allocator) Flags {
         return .{
-            .flags = std.StringHashMap(Flag).init(allocator),
+            .flag_by_name = std.StringHashMap(Flag).init(allocator),
             .short_name_to_long_name = std.AutoHashMap(u8, []const u8).init(allocator),
         };
     }
 
     pub fn addFlag(self: *Flags, flag: Flag) !void {
-        if (self.flags.contains(flag.name)) {
+        if (self.flag_by_name.contains(flag.name)) {
             return FlagAddError.FlagNameAlreadyExists;
         }
         if (flag.short_name) |short_name| {
@@ -34,18 +34,18 @@ pub const Flags = struct {
             }
         }
 
-        try self.flags.put(flag.name, flag);
+        try self.flag_by_name.put(flag.name, flag);
         if (flag.short_name) |short_name| {
             try self.short_name_to_long_name.put(short_name, flag.name);
         }
     }
 
     pub fn get(self: Flags, flag_name: []const u8) ?Flag {
-        return self.flags.get(flag_name) orelse {
+        return self.flag_by_name.get(flag_name) orelse {
             if (flag_name.len > 0) {
                 const long_name = self.short_name_to_long_name.get(flag_name[0]);
                 if (long_name) |name| {
-                    return self.flags.get(name);
+                    return self.flag_by_name.get(name);
                 }
             }
             return null;
@@ -53,7 +53,7 @@ pub const Flags = struct {
     }
 
     pub fn addFlagsWithDefaultValueTo(self: Flags, destination: *ParsedFlags) !void {
-        var iterator = self.flags.iterator();
+        var iterator = self.flag_by_name.iterator();
         while (iterator.next()) |entry| {
             const flag: Flag = entry.value_ptr.*;
             if (flag.default_value) |default_value| {
@@ -65,8 +65,34 @@ pub const Flags = struct {
         }
     }
 
+    pub fn merge(self: *Flags, other: *const Flags) !void {
+        var other_iterator = other.flag_by_name.valueIterator();
+        while (other_iterator.next()) |other_flag| {
+            if (self.flag_by_name.contains(other_flag.name)) {
+                continue;
+            }
+
+            // If the flag has a short name, check for conflicts.
+            if (other_flag.short_name) |other_short_name| {
+                if (self.short_name_to_long_name.contains(other_short_name)) {
+                    // Short name already exists in 'self', but the long name is different (checked above).
+                    // This is an ambiguous definition and should be an error.
+                    std.debug.print("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ other_short_name, other_flag.name, self.short_name_to_long_name.get(other_short_name).? });
+                    return FlagAddError.FlagShortNameAlreadyExists;
+                }
+            }
+
+            // If we reach here, no long name conflict, and no short name conflict for a new long name.
+            // Safely add the flag from 'other' to 'self'.
+            // This call will still handle potential (but unlikely if logic above is correct)
+            // FlagNameAlreadyExists or FlagShortNameAlreadyExists errors.
+            // We can propagate any error from addFlag.
+            try self.addFlag(other_flag.*);
+        }
+    }
+
     pub fn deinit(self: *Flags) void {
-        self.flags.deinit();
+        self.flag_by_name.deinit();
         self.short_name_to_long_name.deinit();
     }
 };
@@ -494,6 +520,65 @@ test "convert a string to string flag value" {
 
     const flag_value = try namespace_flag.toFlagValue("cli-craft");
     try std.testing.expectEqualStrings("cli-craft", flag_value.string);
+}
+
+test "merge flags containing unique flags" {
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build());
+
+    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
+
+    try flags.merge(&other_flags);
+
+    try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
+    try std.testing.expectEqualStrings("verbose", flags.get("verbose").?.name);
+}
+
+test "merge flags containing flags with same name" {
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build());
+
+    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
+    try other_flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).build());
+
+    try flags.merge(&other_flags);
+
+    try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
+    try std.testing.expectEqualStrings("default_namespace", flags.get("n").?.default_value.?.string);
+    try std.testing.expectEqualStrings("verbose", flags.get("verbose").?.name);
+}
+
+test "merge flags with conflicting short names" {
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build());
+
+    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
+    try other_flags.addFlag(Flag.builder("new", "Create new object", FlagType.string)
+        .withShortName('n')
+        .build());
+
+    try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.merge(&other_flags));
 }
 
 test "build a parsed flag with name and value" {
