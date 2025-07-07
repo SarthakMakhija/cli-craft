@@ -81,7 +81,7 @@ pub const Command = struct {
                 defer parsed_arguments.deinit();
 
                 var command_line_parser = CommandLineParser.init(arguments, self.flags);
-                try command_line_parser.parse(&parsed_flags, &parsed_arguments);
+                try command_line_parser.parse(&parsed_flags, &parsed_arguments, false);
 
                 if (self.argument_specification) |argument_specification| {
                     try argument_specification.validate(parsed_arguments.items.len);
