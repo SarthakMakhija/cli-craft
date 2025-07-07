@@ -211,6 +211,7 @@ pub const FlagBuilder = struct {
             .name = name,
             .description = description,
             .flag_type = flag_type,
+            .persistent = false,
         };
     }
 
@@ -220,6 +221,7 @@ pub const FlagBuilder = struct {
             .description = description,
             .flag_type = value.flag_type(),
             .default_value = value,
+            .persistent = false,
         };
     }
 
@@ -693,9 +695,11 @@ test "add a couple of parsed flags with default value" {
     defer parsed_flags.deinit();
 
     const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
+        .markPersistent()
         .build();
 
     const verbose_flag = Flag.builder_with_default_value("verbose", "Display verbose output", FlagValue.type_boolean(false))
+        .markPersistent()
         .build();
 
     var flags = Flags.init(std.testing.allocator);

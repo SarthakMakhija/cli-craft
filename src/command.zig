@@ -5,6 +5,7 @@ const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const FlagValue = @import("flags.zig").FlagValue;
+const FlagValueError = @import("flags.zig").FlagValueError;
 
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const ParsedFlag = @import("flags.zig").ParsedFlag;
@@ -83,7 +84,10 @@ pub const Command = struct {
         var flags = Flags.init(allocator);
         defer flags.deinit();
 
-        return self.executeInternal(arguments, &flags, allocator);
+        var parsed_flags = ParsedFlags.init(allocator);
+        defer parsed_flags.deinit();
+
+        return self.executeInternal(arguments, &flags, &parsed_flags, allocator);
     }
 
     pub fn deinit(self: *Command) void {
@@ -96,14 +100,14 @@ pub const Command = struct {
         }
     }
 
-    fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, allocator: std.mem.Allocator) !void {
+    fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, inherited_parsed_flags: *ParsedFlags, allocator: std.mem.Allocator) !void {
         var all_flags = Flags.init(allocator);
         defer all_flags.deinit();
-
-        try self.merge_flags(inherited_flags, &all_flags);
+        try self.merge_flags(inherited_flags, &all_flags, true);
 
         var parsed_flags = ParsedFlags.init(allocator);
         defer parsed_flags.deinit();
+        try parsed_flags.merge(inherited_parsed_flags);
 
         var parsed_arguments = std.ArrayList([]const u8).init(allocator);
         defer parsed_arguments.deinit();
@@ -116,6 +120,8 @@ pub const Command = struct {
                 if (self.argument_specification) |argument_specification| {
                     try argument_specification.validate(parsed_arguments.items.len);
                 }
+
+                try all_flags.addFlagsWithDefaultValueTo(&parsed_flags);
                 return executable_fn(parsed_flags, parsed_arguments.items);
             },
             .subcommands => |sub_commands| {
@@ -128,14 +134,22 @@ pub const Command = struct {
                 const subcommand_name = parsed_arguments.pop() orelse return CommandParsingError.NoSubcommandProvided;
                 const sub_command = sub_commands.get(subcommand_name) orelse return CommandParsingError.SubcommandNotAddedToParentCommand;
 
-                return sub_command.executeInternal(arguments, &all_flags, allocator);
+                var child_flags = Flags.init(allocator);
+                defer child_flags.deinit();
+
+                try self.merge_flags(inherited_flags, &child_flags, false);
+                try child_flags.addFlagsWithDefaultValueTo(&parsed_flags);
+
+                return sub_command.executeInternal(arguments, &child_flags, &parsed_flags, allocator);
             },
         }
     }
 
-    fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags) !void {
-        if (self.local_flags) |local_flags| {
-            try target_flags.merge(&local_flags);
+    fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags, should_merge_local_flags: bool) !void {
+        if (should_merge_local_flags) {
+            if (self.local_flags) |local_flags| {
+                try target_flags.merge(&local_flags);
+            }
         }
         if (self.persistent_flags) |persistent_flags| {
             try target_flags.merge(&persistent_flags);
@@ -388,7 +402,7 @@ test "add a persistent flag" {
     try std.testing.expectEqualStrings("priority", command.persistent_flags.?.get("priority").?.name);
 }
 
-test "execute a command with flags and arguments" {
+test "execute a command passing flags and arguments" {
     const runnable = struct {
         pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             const augend = try std.fmt.parseInt(u8, arguments[0], 10);
@@ -414,4 +428,184 @@ test "execute a command with flags and arguments" {
 
     try command.execute(&arguments, std.testing.allocator);
     try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute a command with child command passing flags and arguments 1" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+            try std.testing.expect(try flags.getBoolean("verbose"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "--verbose", "pods" });
+    arguments.skipFirst();
+
+    try kubectl_command.execute(&arguments, std.testing.allocator);
+}
+
+test "execute a command with child command passing flags and arguments 2" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+
+            return;
+        }
+    }.run;
+
+    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
+    arguments.skipFirst();
+
+    try kubectl_command.execute(&arguments, std.testing.allocator);
+}
+
+test "execute a command with child command passing flags and arguments with a persistent flag having default value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+            try std.testing.expectEqual(100, try flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).markPersistent().build());
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
+    arguments.skipFirst();
+
+    try kubectl_command.execute(&arguments, std.testing.allocator);
+}
+
+test "execute a command with child command passing flags and arguments with a local flag having default value 1" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+            try std.testing.expectError(FlagValueError.FlagNotFound, flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).build());
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
+    arguments.skipFirst();
+
+    try kubectl_command.execute(&arguments, std.testing.allocator);
+}
+
+test "execute a command with child command passing flags and arguments with a local flag having default value 2" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+            try std.testing.expectEqual(20, try flags.getInt64("timeout"));
+            try std.testing.expectError(FlagValueError.FlagNotFound, flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(20)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).build());
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
+    arguments.skipFirst();
+
+    try kubectl_command.execute(&arguments, std.testing.allocator);
+}
+
+test "execute a command with child command passing flags and arguments with a local flag having default value 3" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
+            try std.testing.expect(try flags.getBoolean("verbose") == false);
+            try std.testing.expectEqual(40, try flags.getInt64("timeout"));
+            try std.testing.expectError(FlagValueError.FlagNotFound, flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(20)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).build());
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "--timeout", "40", "get", "pods", "--verbose", "false" });
+    arguments.skipFirst();
+
+    try kubectl_command.execute(&arguments, std.testing.allocator);
 }

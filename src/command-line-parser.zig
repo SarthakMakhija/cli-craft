@@ -85,10 +85,6 @@ pub const CommandLineParser = struct {
             try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
             last_flag = null;
         }
-
-        if (self.command_flags) |flags| {
-            try flags.addFlagsWithDefaultValueTo(parsed_flags);
-        }
     }
 };
 
