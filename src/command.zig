@@ -80,29 +80,10 @@ pub const Command = struct {
 
     //TODO: print deprecated message if the command is deprecated
     pub fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
-        switch (self.action) {
-            .executable => |executable_fn| {
-                var parsed_flags = ParsedFlags.init(allocator);
-                defer parsed_flags.deinit();
+        var flags = Flags.init(allocator);
+        defer flags.deinit();
 
-                var parsed_arguments = std.ArrayList([]const u8).init(allocator);
-                defer parsed_arguments.deinit();
-
-                var command_line_parser = CommandLineParser.init(arguments, self.local_flags);
-                try command_line_parser.parse(&parsed_flags, &parsed_arguments, false);
-
-                if (self.argument_specification) |argument_specification| {
-                    try argument_specification.validate(parsed_arguments.items.len);
-                }
-                return executable_fn(parsed_flags, parsed_arguments.items);
-            },
-            .subcommands => |sub_commands| {
-                const subcommand_name = arguments.next() orelse return CommandParsingError.NoSubcommandProvided;
-                const command = sub_commands.get(subcommand_name) orelse return CommandParsingError.SubcommandNotAddedToParentCommand;
-
-                return command.execute(arguments, allocator);
-            },
-        }
+        return self.executeInternal(arguments, &flags, allocator);
     }
 
     pub fn deinit(self: *Command) void {
@@ -113,6 +94,53 @@ pub const Command = struct {
         if (self.persistent_flags) |*flags| {
             flags.deinit();
         }
+    }
+
+    fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, allocator: std.mem.Allocator) !void {
+        var all_flags = Flags.init(allocator);
+        defer all_flags.deinit();
+
+        try self.merge_flags(inherited_flags, &all_flags);
+
+        var parsed_flags = ParsedFlags.init(allocator);
+        defer parsed_flags.deinit();
+
+        var parsed_arguments = std.ArrayList([]const u8).init(allocator);
+        defer parsed_arguments.deinit();
+
+        switch (self.action) {
+            .executable => |executable_fn| {
+                var command_line_parser = CommandLineParser.init(arguments, all_flags);
+                try command_line_parser.parse(&parsed_flags, &parsed_arguments, false);
+
+                if (self.argument_specification) |argument_specification| {
+                    try argument_specification.validate(parsed_arguments.items.len);
+                }
+                return executable_fn(parsed_flags, parsed_arguments.items);
+            },
+            .subcommands => |sub_commands| {
+                var command_line_parser = CommandLineParser.init(arguments, all_flags);
+                try command_line_parser.parse(&parsed_flags, &parsed_arguments, true);
+
+                if (parsed_arguments.items.len == 0) {
+                    return CommandParsingError.NoSubcommandProvided;
+                }
+                const subcommand_name = parsed_arguments.pop() orelse return CommandParsingError.NoSubcommandProvided;
+                const sub_command = sub_commands.get(subcommand_name) orelse return CommandParsingError.SubcommandNotAddedToParentCommand;
+
+                return sub_command.executeInternal(arguments, &all_flags, allocator);
+            },
+        }
+    }
+
+    fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags) !void {
+        if (self.local_flags) |local_flags| {
+            try target_flags.merge(&local_flags);
+        }
+        if (self.persistent_flags) |persistent_flags| {
+            try target_flags.merge(&persistent_flags);
+        }
+        try target_flags.merge(inherited_flags);
     }
 };
 

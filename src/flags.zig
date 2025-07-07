@@ -81,12 +81,6 @@ pub const Flags = struct {
                     return FlagAddError.FlagShortNameAlreadyExists;
                 }
             }
-
-            // If we reach here, no long name conflict, and no short name conflict for a new long name.
-            // Safely add the flag from 'other' to 'self'.
-            // This call will still handle potential (but unlikely if logic above is correct)
-            // FlagNameAlreadyExists or FlagShortNameAlreadyExists errors.
-            // We can propagate any error from addFlag.
             try self.addFlag(other_flag.*);
         }
     }
