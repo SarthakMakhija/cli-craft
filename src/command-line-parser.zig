@@ -54,8 +54,18 @@ pub const CommandLineParser = struct {
                 const flag_name = Flag.normalizeFlagName(argument);
                 last_flag = self.command_flags.?.get(flag_name) orelse return FlagValueError.FlagNotFound;
             } else if (last_flag) |flag| {
-                try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
-                last_flag = null;
+                if (flag.flag_type == FlagType.boolean) {
+                    if (Flag.looksLikeBooleanFlagValue(argument)) {
+                        try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
+                    } else {
+                        try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                        try parsed_arguments.append(argument);
+                    }
+                    last_flag = null;
+                } else {
+                    try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
+                    last_flag = null;
+                }
             } else {
                 try parsed_arguments.append(argument);
                 last_flag = null;
@@ -98,6 +108,54 @@ test "parse a command line having a boolean flag without explicit value" {
     try std.testing.expectEqual("5", parsed_arguments.pop().?);
     try std.testing.expectEqual("2", parsed_arguments.pop().?);
     try std.testing.expect(try parsed_flags.getBoolean("verbose"));
+}
+
+test "parse a command line having a boolean flag without explicit value followed by arguments" {
+    var flags = Flags.init(std.testing.allocator);
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
+    try flags.addFlag(verbose_flag);
+
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "--verbose", "2", "5" });
+    arguments.skipFirst();
+
+    const parser = CommandLineParser.init(&arguments, flags);
+    try parser.parse(&parsed_flags, &parsed_arguments);
+
+    try std.testing.expectEqual("5", parsed_arguments.pop().?);
+    try std.testing.expectEqual("2", parsed_arguments.pop().?);
+    try std.testing.expect(try parsed_flags.getBoolean("verbose"));
+}
+
+test "parse a command line having a boolean flag with explicit value followed by arguments" {
+    var flags = Flags.init(std.testing.allocator);
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
+    try flags.addFlag(verbose_flag);
+
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "--verbose", "false", "2", "5" });
+    arguments.skipFirst();
+
+    const parser = CommandLineParser.init(&arguments, flags);
+    try parser.parse(&parsed_flags, &parsed_arguments);
+
+    try std.testing.expectEqual("5", parsed_arguments.pop().?);
+    try std.testing.expectEqual("2", parsed_arguments.pop().?);
+    try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
 }
 
 test "parse a command line having flags and no arguments" {

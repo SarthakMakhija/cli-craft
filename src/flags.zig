@@ -130,6 +130,11 @@ pub const Flag = struct {
             (name.len > 2 and name[0] == '-' and name[1] == '-');
     }
 
+    pub fn looksLikeBooleanFlagValue(value: []const u8) bool {
+        if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return true;
+        return false;
+    }
+
     pub fn normalizeFlagName(name: []const u8) []const u8 {
         if (name.len > 2 and name[0] == '-' and name[1] == '-') {
             return name[2..];
