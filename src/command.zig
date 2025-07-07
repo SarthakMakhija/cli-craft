@@ -5,21 +5,17 @@ const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const FlagValue = @import("flags.zig").FlagValue;
-const FlagValueError = @import("flags.zig").FlagValueError;
 
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const ParsedFlag = @import("flags.zig").ParsedFlag;
+
+const CommandLineParser = @import("command-line-parser.zig").CommandLineParser;
+const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
 pub const CommandAlias = []const u8;
 pub const CommandAliases = []const CommandAlias;
-
-pub const CommandExecutionError = error{
-    NoSubcommandProvided,
-    SubcommandNotAddedToParentCommand,
-    NoFlagsAddedToCommand,
-};
 
 pub const Command = struct {
     name: []const u8,
@@ -84,7 +80,7 @@ pub const Command = struct {
                 var parsed_arguments = std.ArrayList([]const u8).init(allocator);
                 defer parsed_arguments.deinit();
 
-                var command_line_parser = CommandLinerParser.init(arguments, self.flags);
+                var command_line_parser = CommandLineParser.init(arguments, self.flags);
                 try command_line_parser.parse(&parsed_flags, &parsed_arguments);
 
                 if (self.argument_specification) |argument_specification| {
@@ -93,8 +89,8 @@ pub const Command = struct {
                 return executable_fn(parsed_flags, parsed_arguments.items);
             },
             .subcommands => |sub_commands| {
-                const subcommand_name = arguments.next() orelse return CommandExecutionError.NoSubcommandProvided;
-                const command = sub_commands.get(subcommand_name) orelse return CommandExecutionError.SubcommandNotAddedToParentCommand;
+                const subcommand_name = arguments.next() orelse return CommandParsingError.NoSubcommandProvided;
+                const command = sub_commands.get(subcommand_name) orelse return CommandParsingError.SubcommandNotAddedToParentCommand;
 
                 return command.execute(arguments, allocator);
             },
@@ -105,64 +101,6 @@ pub const Command = struct {
         self.action.deinit();
         if (self.flags) |*flags| {
             flags.deinit();
-        }
-    }
-};
-
-const CommandLinerParser = struct {
-    arguments: *Arguments,
-    command_flags: ?Flags,
-
-    fn init(arguments: *Arguments, command_flags: ?Flags) CommandLinerParser {
-        return .{
-            .arguments = arguments,
-            .command_flags = command_flags,
-        };
-    }
-
-    fn parse(
-        self: CommandLinerParser,
-        parsed_flags: *ParsedFlags,
-        parsed_arguments: *std.ArrayList([]const u8),
-    ) !void {
-        var last_flag: ?Flag = null;
-        while (self.arguments.next()) |argument| {
-            if (Flag.looksLikeFlagName(argument)) {
-                if (self.command_flags == null) {
-                    return CommandExecutionError.NoFlagsAddedToCommand;
-                }
-                if (last_flag) |flag| {
-                    if (flag.flag_type == FlagType.boolean) {
-                        try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
-                    } else {
-                        if (flag.default_value) |default_value| {
-                            try parsed_flags.add(ParsedFlag.init(flag.name, default_value));
-                        } else {
-                            return FlagValueError.FlagValueNotProvided;
-                        }
-                    }
-                }
-                const flag_name = Flag.normalizeFlagName(argument);
-                last_flag = self.command_flags.?.get(flag_name) orelse return FlagValueError.FlagNotFound;
-            } else if (last_flag) |flag| {
-                try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
-                last_flag = null;
-            } else {
-                try parsed_arguments.append(argument);
-                last_flag = null;
-            }
-        }
-
-        if (last_flag) |flag| {
-            if (flag.flag_type != FlagType.boolean) {
-                return FlagValueError.FlagValueNotProvided;
-            }
-            try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
-            last_flag = null;
-        }
-
-        if (self.command_flags) |flags| {
-            try flags.addFlagsWithDefaultValueTo(parsed_flags);
         }
     }
 };
@@ -384,140 +322,10 @@ test "attempt to execute a command with a subcommand but with incorrect command 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "delete" });
     arguments.skipFirst();
 
-    try std.testing.expectError(CommandExecutionError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, std.testing.allocator));
+    try std.testing.expectError(CommandParsingError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, std.testing.allocator));
 }
 
-test "execute a command with an executable command having a boolean flag without explicit value" {
-    const runnable = struct {
-        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
-            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
-            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
-
-            try std.testing.expect(try flags.getBoolean("verbose"));
-
-            add_command_result = augend + addend;
-            return;
-        }
-    }.run;
-
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
-    try command.addLocalFlag(verbose_flag);
-    defer command.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose" });
-    arguments.skipFirst();
-
-    try command.execute(&arguments, std.testing.allocator);
-    try std.testing.expectEqual(7, add_command_result);
-}
-
-test "execute a command with an executable command having a boolean flag with explicit value" {
-    const runnable = struct {
-        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
-            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
-            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
-
-            try std.testing.expect(try flags.getBoolean("verbose") == false);
-
-            add_command_result = augend + addend;
-            return;
-        }
-    }.run;
-
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
-    try command.addLocalFlag(verbose_flag);
-    defer command.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "false" });
-    arguments.skipFirst();
-
-    try command.execute(&arguments, std.testing.allocator);
-    try std.testing.expectEqual(7, add_command_result);
-}
-
-test "execute a command with an executable command having flags and no arguments" {
-    const runnable = struct {
-        pub fn run(flags: ParsedFlags, _: CommandFnArguments) anyerror!void {
-            const augend = try flags.getInt64("augend");
-            const addend = try flags.getInt64("addend");
-
-            add_command_result_via_flags = augend + addend;
-            return;
-        }
-    }.run;
-
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
-    try command.addLocalFlag(Flag.builder("augend", "First argument to add", FlagType.int64).build());
-    try command.addLocalFlag(Flag.builder("addend", "Second argument to add", FlagType.int64).build());
-
-    defer command.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "--augend", "2", "--addend", "5" });
-    arguments.skipFirst();
-
-    try command.execute(&arguments, std.testing.allocator);
-    try std.testing.expectEqual(7, add_command_result_via_flags);
-}
-
-test "execute a command with an executable command having a few flags and arguments" {
-    const runnable = struct {
-        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
-            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
-            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
-
-            try std.testing.expect(try flags.getBoolean("verbose") == false);
-            try std.testing.expect(try flags.getBoolean("priority") == true);
-            try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
-
-            add_command_result = augend + addend;
-            return;
-        }
-    }.run;
-
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
-    try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder("namespace", "Define namespace", FlagType.string).withShortName('n').build());
-    defer command.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "false", "-n", "cli-craft", "--priority" });
-    arguments.skipFirst();
-
-    try command.execute(&arguments, std.testing.allocator);
-    try std.testing.expectEqual(7, add_command_result);
-}
-
-test "execute a command with flags having default value" {
-    const runnable = struct {
-        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
-            const augend = try std.fmt.parseInt(u8, arguments[0], 10);
-            const addend = try std.fmt.parseInt(u8, arguments[1], 10);
-
-            try std.testing.expect(try flags.getBoolean("verbose"));
-            try std.testing.expect(try flags.getBoolean("priority"));
-            try std.testing.expectEqual(10, try flags.getInt64("timeout"));
-
-            add_command_result = augend + addend;
-            return;
-        }
-    }.run;
-
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
-    try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
-    defer command.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "-t", "--priority" });
-    arguments.skipFirst();
-
-    try command.execute(&arguments, std.testing.allocator);
-    try std.testing.expectEqual(7, add_command_result);
-}
-
-test "execute a command with flags having default value but with command line containing a different value" {
+test "execute a command with flags and arguments" {
     const runnable = struct {
         pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             const augend = try std.fmt.parseInt(u8, arguments[0], 10);
