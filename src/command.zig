@@ -26,7 +26,8 @@ pub const Command = struct {
     argument_specification: ?ArgumentSpecification = null,
     deprecated_message: ?[]const u8 = null,
     has_parent: bool = false,
-    flags: ?Flags = null,
+    local_flags: ?Flags = null,
+    persistent_flags: ?Flags = null,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn, allocator: std.mem.Allocator) Command {
         return .{
@@ -59,11 +60,18 @@ pub const Command = struct {
         self.argument_specification = specification;
     }
 
-    pub fn addLocalFlag(self: *Command, flag: Flag) !void {
-        if (self.flags == null) {
-            self.flags = Flags.init(self.allocator);
+    pub fn addFlag(self: *Command, flag: Flag) !void {
+        if (flag.persistent) {
+            if (self.persistent_flags == null) {
+                self.persistent_flags = Flags.init(self.allocator);
+            }
+            try self.persistent_flags.?.addFlag(flag);
+        } else {
+            if (self.local_flags == null) {
+                self.local_flags = Flags.init(self.allocator);
+            }
+            try self.local_flags.?.addFlag(flag);
         }
-        try self.flags.?.addFlag(flag);
     }
 
     pub fn markDeprecated(self: *Command, deprecated_message: []const u8) void {
@@ -80,7 +88,7 @@ pub const Command = struct {
                 var parsed_arguments = std.ArrayList([]const u8).init(allocator);
                 defer parsed_arguments.deinit();
 
-                var command_line_parser = CommandLineParser.init(arguments, self.flags);
+                var command_line_parser = CommandLineParser.init(arguments, self.local_flags);
                 try command_line_parser.parse(&parsed_flags, &parsed_arguments, false);
 
                 if (self.argument_specification) |argument_specification| {
@@ -99,7 +107,10 @@ pub const Command = struct {
 
     pub fn deinit(self: *Command) void {
         self.action.deinit();
-        if (self.flags) |*flags| {
+        if (self.local_flags) |*flags| {
+            flags.deinit();
+        }
+        if (self.persistent_flags) |*flags| {
             flags.deinit();
         }
     }
@@ -145,12 +156,12 @@ test "initialize a command with a local flag" {
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
 
     var command = Command.init("test", "test command", runnable, std.testing.allocator);
-    try command.addLocalFlag(verbose_flag);
+    try command.addFlag(verbose_flag);
 
     defer command.deinit();
 
-    try std.testing.expect(command.flags != null);
-    try std.testing.expectEqualStrings("verbose", command.flags.?.get("verbose").?.name);
+    try std.testing.expect(command.local_flags != null);
+    try std.testing.expectEqualStrings("verbose", command.local_flags.?.get("verbose").?.name);
 }
 
 test "initialize a command without any flags" {
@@ -163,7 +174,7 @@ test "initialize a command without any flags" {
     var command = Command.init("test", "test command", runnable, std.testing.allocator);
     defer command.deinit();
 
-    try std.testing.expect(command.flags == null);
+    try std.testing.expect(command.local_flags == null);
 }
 
 test "initialize an executable command with an alias" {
@@ -325,6 +336,30 @@ test "attempt to execute a command with a subcommand but with incorrect command 
     try std.testing.expectError(CommandParsingError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, std.testing.allocator));
 }
 
+test "add a local flag" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
+    defer command.deinit();
+
+    try std.testing.expectEqualStrings("priority", command.local_flags.?.get("priority").?.name);
+}
+
+test "add a persistent flag" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build());
+    defer command.deinit();
+
+    try std.testing.expectEqualStrings("priority", command.persistent_flags.?.get("priority").?.name);
+}
+
 test "execute a command with flags and arguments" {
     const runnable = struct {
         pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
@@ -341,9 +376,9 @@ test "execute a command with flags and arguments" {
     }.run;
 
     var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
-    try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+    try command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
+    try command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
