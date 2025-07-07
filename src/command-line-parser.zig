@@ -234,7 +234,7 @@ test "parse a command line with flags having default value but with command line
     var flags = Flags.init(std.testing.allocator);
     try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
     try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
+    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
 
     defer flags.deinit();
 

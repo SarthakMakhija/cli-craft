@@ -93,6 +93,14 @@ pub const FlagValue = union(FlagType) {
     pub fn type_string(value: []const u8) FlagValue {
         return .{ .string = value };
     }
+
+    fn flag_type(self: FlagValue) FlagType {
+        return switch (self) {
+            .boolean => FlagType.boolean,
+            .int64 => FlagType.int64,
+            .string => FlagType.string,
+        };
+    }
 };
 
 pub const Flag = struct {
@@ -123,6 +131,10 @@ pub const Flag = struct {
 
     pub fn builder(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
         return FlagBuilder.init(name, description, flag_type);
+    }
+
+    pub fn builder_with_default_value(name: []const u8, description: []const u8, flag_value: FlagValue) FlagBuilder {
+        return FlagBuilder.initWithDefaultValue(name, description, flag_value);
     }
 
     pub fn looksLikeFlagName(name: []const u8) bool {
@@ -182,15 +194,18 @@ pub const FlagBuilder = struct {
         };
     }
 
+    fn initWithDefaultValue(name: []const u8, description: []const u8, value: FlagValue) FlagBuilder {
+        return .{
+            .name = name,
+            .description = description,
+            .flag_type = value.flag_type(),
+            .default_value = value,
+        };
+    }
+
     pub fn withShortName(self: FlagBuilder, short_name: u8) FlagBuilder {
         var new_self = self;
         new_self.short_name = short_name;
-        return new_self;
-    }
-
-    pub fn withDefaultValue(self: FlagBuilder, value: FlagValue) FlagBuilder {
-        var new_self = self;
-        new_self.default_value = value;
         return new_self;
     }
 
@@ -266,9 +281,8 @@ test "build a boolean flag with name and description" {
 }
 
 test "build a boolean flag with short name and default value" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
+    const verbose_flag = Flag.builder_with_default_value("verbose", "Enable verbose output", FlagValue.type_boolean(false))
         .withShortName('v')
-        .withDefaultValue(FlagValue.type_boolean(false))
         .build();
 
     try std.testing.expectEqualStrings("verbose", verbose_flag.name);
@@ -289,8 +303,7 @@ test "build a int64 flag with name and description" {
 }
 
 test "build a int64 flag with short name and default value" {
-    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
-        .withDefaultValue(FlagValue.type_int64(10))
+    const count_flag = Flag.builder_with_default_value("count", "Count items", FlagValue.type_int64(10))
         .withShortName('c')
         .build();
 
@@ -312,9 +325,8 @@ test "build a string flag with name and description" {
 }
 
 test "build a string flag with short name and default value" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
 
     try std.testing.expectEqualStrings("namespace", namespace_flag.name);
@@ -379,9 +391,8 @@ test "normalize a flag name which is already normalized or is not a flag" {
 }
 
 test "attempt to add a flag with an existing name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -397,9 +408,8 @@ test "attempt to add a flag with an existing name" {
 }
 
 test "attempt to add a flag with an existing short name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -415,9 +425,8 @@ test "attempt to add a flag with an existing short name" {
 }
 
 test "add a flag and check its existence by name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -429,9 +438,8 @@ test "add a flag and check its existence by name" {
 }
 
 test "add a flag and check its existence by short name" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .withDefaultValue(FlagValue.type_string("default_namespace"))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -558,8 +566,7 @@ test "add a parsed flag with default value" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64)
-        .withDefaultValue(FlagValue.type_int64(25))
+    const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -578,8 +585,7 @@ test "attempt to add a parsed flag with default value when the flag is already p
     try parsed_flags.add(ParsedFlag.init("timeout", FlagValue.type_int64(30)));
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64)
-        .withDefaultValue(FlagValue.type_int64(25))
+    const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -597,12 +603,10 @@ test "add a couple of parsed flags with default value" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64)
-        .withDefaultValue(FlagValue.type_int64(25))
+    const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
         .build();
 
-    const verbose_flag = Flag.builder("verbose", "Display verbose output", FlagType.boolean)
-        .withDefaultValue(FlagValue.type_boolean(false))
+    const verbose_flag = Flag.builder_with_default_value("verbose", "Display verbose output", FlagValue.type_boolean(false))
         .build();
 
     var flags = Flags.init(std.testing.allocator);

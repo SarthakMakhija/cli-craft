@@ -343,7 +343,7 @@ test "execute a command with flags and arguments" {
     var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
     try command.addLocalFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
     try command.addLocalFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
-    try command.addLocalFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
+    try command.addLocalFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
