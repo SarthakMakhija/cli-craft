@@ -346,7 +346,7 @@ test "execute a command with flags and arguments" {
     try command.addLocalFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
     defer command.deinit();
 
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "-t", "23", "--priority" });
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
     arguments.skipFirst();
 
     try command.execute(&arguments, std.testing.allocator);

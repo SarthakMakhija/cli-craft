@@ -44,11 +44,7 @@ pub const CommandLineParser = struct {
                     if (flag.flag_type == FlagType.boolean) {
                         try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
                     } else {
-                        if (flag.default_value) |default_value| {
-                            try parsed_flags.add(ParsedFlag.init(flag.name, default_value));
-                        } else {
-                            return FlagValueError.FlagValueNotProvided;
-                        }
+                        return FlagValueError.FlagValueNotProvided;
                     }
                 }
                 const flag_name = Flag.normalizeFlagName(argument);
@@ -158,6 +154,30 @@ test "parse a command line having a boolean flag with explicit value followed by
     try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
 }
 
+test "parse a command line having a flag with explicit value followed by arguments" {
+    var flags = Flags.init(std.testing.allocator);
+    const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64).build();
+    try flags.addFlag(timeout_flag);
+
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "--timeout", "50", "2", "5" });
+    arguments.skipFirst();
+
+    const parser = CommandLineParser.init(&arguments, flags);
+    try parser.parse(&parsed_flags, &parsed_arguments);
+
+    try std.testing.expectEqual("5", parsed_arguments.pop().?);
+    try std.testing.expectEqual("2", parsed_arguments.pop().?);
+    try std.testing.expectEqual(50, try parsed_flags.getInt64("timeout"));
+}
+
 test "parse a command line having flags and no arguments" {
     var flags = Flags.init(std.testing.allocator);
     try flags.addFlag(Flag.builder("augend", "First argument to add", FlagType.int64).build());
@@ -208,34 +228,6 @@ test "parse a command line having a few flags and arguments" {
     try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
     try std.testing.expect(try parsed_flags.getBoolean("priority") == true);
     try std.testing.expectEqualStrings("cli-craft", try parsed_flags.getString("namespace"));
-}
-
-test "parse a command line with flags having default value" {
-    var flags = Flags.init(std.testing.allocator);
-    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder("timeout", "Define timeout", FlagType.int64).withShortName('t').withDefaultValue(FlagValue.type_int64(10)).build());
-
-    defer flags.deinit();
-
-    var parsed_flags = ParsedFlags.init(std.testing.allocator);
-    defer parsed_flags.deinit();
-
-    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
-    defer parsed_arguments.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose", "-t", "--priority" });
-    arguments.skipFirst();
-
-    const parser = CommandLineParser.init(&arguments, flags);
-    try parser.parse(&parsed_flags, &parsed_arguments);
-
-    try std.testing.expectEqual("5", parsed_arguments.pop().?);
-    try std.testing.expectEqual("2", parsed_arguments.pop().?);
-
-    try std.testing.expect(try parsed_flags.getBoolean("verbose") == true);
-    try std.testing.expect(try parsed_flags.getBoolean("priority") == true);
-    try std.testing.expectEqual(10, try parsed_flags.getInt64("timeout"));
 }
 
 test "parse a command line with flags having default value but with command line containing a different valuee" {
