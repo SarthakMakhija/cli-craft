@@ -57,10 +57,10 @@ pub const Flags = struct {
         while (iterator.next()) |entry| {
             const flag: Flag = entry.value_ptr.*;
             if (flag.default_value) |default_value| {
-                if (destination.flags.contains(flag.name)) {
+                if (destination.flag_by_name.contains(flag.name)) {
                     continue;
                 }
-                try destination.add(ParsedFlag.init(flag.name, default_value));
+                try destination.addFlag(ParsedFlag.init(flag.name, default_value));
             }
         }
     }
@@ -250,18 +250,18 @@ pub const ParsedFlag = struct {
 };
 
 pub const ParsedFlags = struct {
-    flags: std.StringHashMap(ParsedFlag),
+    flag_by_name: std.StringHashMap(ParsedFlag),
 
     pub fn init(allocator: std.mem.Allocator) ParsedFlags {
-        return .{ .flags = std.StringHashMap(ParsedFlag).init(allocator) };
+        return .{ .flag_by_name = std.StringHashMap(ParsedFlag).init(allocator) };
     }
 
-    pub fn add(self: *ParsedFlags, flag: ParsedFlag) !void {
-        try self.flags.put(flag.name, flag);
+    pub fn addFlag(self: *ParsedFlags, flag: ParsedFlag) !void {
+        try self.flag_by_name.put(flag.name, flag);
     }
 
     pub fn getBoolean(self: ParsedFlags, name: []const u8) !bool {
-        const flag = self.flags.get(name) orelse return FlagValueError.FlagNotFound;
+        const flag = self.flag_by_name.get(name) orelse return FlagValueError.FlagNotFound;
         switch (flag.value) {
             .boolean => return flag.value.boolean,
             else => return FlagValueError.FlagTypeMismatch,
@@ -269,7 +269,7 @@ pub const ParsedFlags = struct {
     }
 
     pub fn getInt64(self: ParsedFlags, name: []const u8) !i64 {
-        const flag = self.flags.get(name) orelse return FlagValueError.FlagNotFound;
+        const flag = self.flag_by_name.get(name) orelse return FlagValueError.FlagNotFound;
         switch (flag.value) {
             .int64 => return flag.value.int64,
             else => return FlagValueError.FlagTypeMismatch,
@@ -277,15 +277,25 @@ pub const ParsedFlags = struct {
     }
 
     pub fn getString(self: ParsedFlags, name: []const u8) ![]const u8 {
-        const flag = self.flags.get(name) orelse return FlagValueError.FlagNotFound;
+        const flag = self.flag_by_name.get(name) orelse return FlagValueError.FlagNotFound;
         switch (flag.value) {
             .string => return flag.value.string,
             else => return FlagValueError.FlagTypeMismatch,
         }
     }
 
+    pub fn merge(self: *ParsedFlags, other: *const ParsedFlags) !void {
+        var other_iterator = other.flag_by_name.valueIterator();
+        while (other_iterator.next()) |other_flag| {
+            if (self.flag_by_name.contains(other_flag.name)) {
+                continue;
+            }
+            try self.addFlag(other_flag.*);
+        }
+    }
+
     pub fn deinit(self: *ParsedFlags) void {
-        self.flags.deinit();
+        self.flag_by_name.deinit();
     }
 };
 
@@ -587,7 +597,7 @@ test "add a parsed boolean flag" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    try parsed_flags.add(verbose_flag);
+    try parsed_flags.addFlag(verbose_flag);
     try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
 }
 
@@ -597,7 +607,7 @@ test "add a parsed boolean flag and attempt to get an i64 flag" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    try parsed_flags.add(verbose_flag);
+    try parsed_flags.addFlag(verbose_flag);
     try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getInt64("verbose"));
 }
 
@@ -607,7 +617,7 @@ test "add a parsed int64 flag" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    try parsed_flags.add(counting_flag);
+    try parsed_flags.addFlag(counting_flag);
     try std.testing.expectEqual(10, try parsed_flags.getInt64("count"));
 }
 
@@ -617,7 +627,7 @@ test "add a parsed int64 flag and attempt to get a string flag" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    try parsed_flags.add(counting_flag);
+    try parsed_flags.addFlag(counting_flag);
     try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getString("count"));
 }
 
@@ -627,7 +637,7 @@ test "add a parsed string flag" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    try parsed_flags.add(namespace_flag);
+    try parsed_flags.addFlag(namespace_flag);
     try std.testing.expectEqualStrings("k8s", try parsed_flags.getString("namespace"));
 }
 
@@ -637,7 +647,7 @@ test "add a parsed string flag and attempt to get a boolean flag" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    try parsed_flags.add(namespace_flag);
+    try parsed_flags.addFlag(namespace_flag);
     try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getBoolean("namespace"));
 }
 
@@ -655,13 +665,13 @@ test "add a parsed flag with default value" {
 
     try flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
-    try std.testing.expect(parsed_flags.flags.contains("timeout"));
+    try std.testing.expect(parsed_flags.flag_by_name.contains("timeout"));
     try std.testing.expectEqual(25, try parsed_flags.getInt64("timeout"));
 }
 
 test "attempt to add a parsed flag with default value when the flag is already present" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
-    try parsed_flags.add(ParsedFlag.init("timeout", FlagValue.type_int64(30)));
+    try parsed_flags.addFlag(ParsedFlag.init("timeout", FlagValue.type_int64(30)));
     defer parsed_flags.deinit();
 
     const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
@@ -674,7 +684,7 @@ test "attempt to add a parsed flag with default value when the flag is already p
 
     try flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
-    try std.testing.expect(parsed_flags.flags.contains("timeout"));
+    try std.testing.expect(parsed_flags.flag_by_name.contains("timeout"));
     try std.testing.expectEqual(30, try parsed_flags.getInt64("timeout"));
 }
 
@@ -696,9 +706,42 @@ test "add a couple of parsed flags with default value" {
 
     try flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
-    try std.testing.expect(parsed_flags.flags.contains("timeout"));
+    try std.testing.expect(parsed_flags.flag_by_name.contains("timeout"));
     try std.testing.expectEqual(25, try parsed_flags.getInt64("timeout"));
 
-    try std.testing.expect(parsed_flags.flags.contains("verbose"));
+    try std.testing.expect(parsed_flags.flag_by_name.contains("verbose"));
     try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
+}
+
+test "merge parsed flags containing unique flags" {
+    var flags = ParsedFlags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = ParsedFlags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace")));
+    try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
+
+    try flags.merge(&other_flags);
+
+    try std.testing.expectEqualStrings("default_namespace", try flags.getString("namespace"));
+    try std.testing.expect(try flags.getBoolean("verbose") == false);
+}
+
+test "merge parsed flags containing duplicate flags" {
+    var flags = ParsedFlags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = ParsedFlags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace")));
+    try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
+    try other_flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace again")));
+
+    try flags.merge(&other_flags);
+
+    try std.testing.expectEqualStrings("default_namespace", try flags.getString("namespace"));
+    try std.testing.expect(try flags.getBoolean("verbose") == false);
 }

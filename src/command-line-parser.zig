@@ -43,7 +43,7 @@ pub const CommandLineParser = struct {
                 }
                 if (last_flag) |flag| {
                     if (flag.flag_type == FlagType.boolean) {
-                        try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                        try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
                     } else {
                         return FlagValueError.FlagValueNotProvided;
                     }
@@ -53,10 +53,10 @@ pub const CommandLineParser = struct {
             } else if (last_flag) |flag| {
                 if (flag.flag_type == FlagType.boolean) {
                     if (Flag.looksLikeBooleanFlagValue(argument)) {
-                        try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
+                        try parsed_flags.addFlag(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
                         last_flag = null;
                     } else {
-                        try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                        try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
                         try parsed_arguments.append(argument);
                         last_flag = null;
 
@@ -65,7 +65,7 @@ pub const CommandLineParser = struct {
                         }
                     }
                 } else {
-                    try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
+                    try parsed_flags.addFlag(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
                     last_flag = null;
                 }
             } else {
@@ -82,7 +82,7 @@ pub const CommandLineParser = struct {
             if (flag.flag_type != FlagType.boolean) {
                 return FlagValueError.FlagValueNotProvided;
             }
-            try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+            try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
             last_flag = null;
         }
 
