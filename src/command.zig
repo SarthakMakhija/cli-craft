@@ -84,45 +84,8 @@ pub const Command = struct {
                 var parsed_arguments = std.ArrayList([]const u8).init(allocator);
                 defer parsed_arguments.deinit();
 
-                var last_flag: ?Flag = null;
-                while (arguments.next()) |argument| {
-                    if (Flag.looksLikeFlagName(argument)) {
-                        if (self.flags == null) {
-                            return CommandExecutionError.NoFlagsAddedToCommand;
-                        }
-                        if (last_flag) |flag| {
-                            if (flag.flag_type == FlagType.boolean) {
-                                try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
-                            } else {
-                                if (flag.default_value) |default_value| {
-                                    try parsed_flags.add(ParsedFlag.init(flag.name, default_value));
-                                } else {
-                                    return FlagValueError.FlagValueNotProvided;
-                                }
-                            }
-                        }
-                        const flag_name = Flag.normalizeFlagName(argument);
-                        last_flag = self.flags.?.get(flag_name) orelse return FlagValueError.FlagNotFound;
-                    } else if (last_flag) |flag| {
-                        try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
-                        last_flag = null;
-                    } else {
-                        try parsed_arguments.append(argument);
-                        last_flag = null;
-                    }
-                }
-
-                if (last_flag) |flag| {
-                    if (flag.flag_type != FlagType.boolean) {
-                        return FlagValueError.FlagValueNotProvided;
-                    }
-                    try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
-                    last_flag = null;
-                }
-
-                if (self.flags) |flags| {
-                    try flags.addFlagsWithDefaultValueTo(&parsed_flags);
-                }
+                var command_line_parser = CommandLinerParser.init(arguments, self.flags);
+                try command_line_parser.parse(&parsed_flags, &parsed_arguments);
 
                 if (self.argument_specification) |argument_specification| {
                     try argument_specification.validate(parsed_arguments.items.len);
@@ -142,6 +105,64 @@ pub const Command = struct {
         self.action.deinit();
         if (self.flags) |*flags| {
             flags.deinit();
+        }
+    }
+};
+
+const CommandLinerParser = struct {
+    arguments: *Arguments,
+    command_flags: ?Flags,
+
+    fn init(arguments: *Arguments, command_flags: ?Flags) CommandLinerParser {
+        return .{
+            .arguments = arguments,
+            .command_flags = command_flags,
+        };
+    }
+
+    fn parse(
+        self: CommandLinerParser,
+        parsed_flags: *ParsedFlags,
+        parsed_arguments: *std.ArrayList([]const u8),
+    ) !void {
+        var last_flag: ?Flag = null;
+        while (self.arguments.next()) |argument| {
+            if (Flag.looksLikeFlagName(argument)) {
+                if (self.command_flags == null) {
+                    return CommandExecutionError.NoFlagsAddedToCommand;
+                }
+                if (last_flag) |flag| {
+                    if (flag.flag_type == FlagType.boolean) {
+                        try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+                    } else {
+                        if (flag.default_value) |default_value| {
+                            try parsed_flags.add(ParsedFlag.init(flag.name, default_value));
+                        } else {
+                            return FlagValueError.FlagValueNotProvided;
+                        }
+                    }
+                }
+                const flag_name = Flag.normalizeFlagName(argument);
+                last_flag = self.command_flags.?.get(flag_name) orelse return FlagValueError.FlagNotFound;
+            } else if (last_flag) |flag| {
+                try parsed_flags.add(ParsedFlag.init(flag.name, try flag.toFlagValue(argument)));
+                last_flag = null;
+            } else {
+                try parsed_arguments.append(argument);
+                last_flag = null;
+            }
+        }
+
+        if (last_flag) |flag| {
+            if (flag.flag_type != FlagType.boolean) {
+                return FlagValueError.FlagValueNotProvided;
+            }
+            try parsed_flags.add(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+            last_flag = null;
+        }
+
+        if (self.command_flags) |flags| {
+            try flags.addFlagsWithDefaultValueTo(parsed_flags);
         }
     }
 };
