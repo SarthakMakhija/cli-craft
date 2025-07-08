@@ -7,7 +7,6 @@ const std = @import("std");
 pub const Command = @import("command.zig");
 pub const Commands = @import("commands.zig");
 pub const ArgumentSpecification = @import("argument-specification.zig");
-pub const Flags = @import("flags.zig");
 
 test {
     // Reference all tests from modules
