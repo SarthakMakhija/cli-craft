@@ -21,6 +21,8 @@
 - [X] Add support for passing flags with default value
 - [X] Add support for persistent flags
 - [X] Add support for executing commands with persistent flags
+- [ ] Revalidate the design of FlagType and FlagValue
+- [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
 - [ ] Revalidate the arguments of run function in a command
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [ ] An entrypoint of the cli-craft library
