@@ -6,7 +6,7 @@ const Commands = @import("commands.zig").Commands;
 const CommandFn = @import("command.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
-pub const CommanAddError = error{CannotAddSubCommandToExecutable};
+pub const CommandAddError = error{CannotAddSubCommandToExecutable};
 
 pub const CommandAction = union(enum) {
     executable: CommandFn,
@@ -23,7 +23,7 @@ pub const CommandAction = union(enum) {
     pub fn addSubcommand(self: *CommandAction, subcommand: Command) !void {
         switch (self.*) {
             .executable => {
-                return CommanAddError.CannotAddSubCommandToExecutable;
+                return CommandAddError.CannotAddSubCommandToExecutable;
             },
             .subcommands => {
                 try self.subcommands.add_allow_parent(subcommand);
