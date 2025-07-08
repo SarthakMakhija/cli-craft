@@ -5,7 +5,7 @@ const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const FlagValue = @import("flags.zig").FlagValue;
-const FlagValueError = @import("flags.zig").FlagValueError;
+const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const ParsedFlag = @import("flags.zig").ParsedFlag;
@@ -16,6 +16,8 @@ pub const CommandParsingError = error{
     NoSubcommandProvided,
     SubcommandNotAddedToParentCommand,
     NoFlagsAddedToCommand,
+    FlagValueNotProvided,
+    FlagNotFound,
 };
 
 pub const CommandLineParser = struct {
@@ -45,11 +47,11 @@ pub const CommandLineParser = struct {
                     if (flag.flag_type == FlagType.boolean) {
                         try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
                     } else {
-                        return FlagValueError.FlagValueNotProvided;
+                        return CommandParsingError.FlagValueNotProvided;
                     }
                 }
                 const flag_name = Flag.normalizeFlagName(argument);
-                last_flag = self.command_flags.?.get(flag_name) orelse return FlagValueError.FlagNotFound;
+                last_flag = self.command_flags.?.get(flag_name) orelse return CommandParsingError.FlagNotFound;
             } else if (last_flag) |flag| {
                 if (flag.flag_type == FlagType.boolean) {
                     if (Flag.looksLikeBooleanFlagValue(argument)) {
@@ -80,7 +82,7 @@ pub const CommandLineParser = struct {
 
         if (last_flag) |flag| {
             if (flag.flag_type != FlagType.boolean) {
-                return FlagValueError.FlagValueNotProvided;
+                return CommandParsingError.FlagValueNotProvided;
             }
             try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
             last_flag = null;
@@ -90,8 +92,10 @@ pub const CommandLineParser = struct {
 
 test "parse a command line having a boolean flag without explicit value" {
     var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
-    try flags.addFlag(verbose_flag);
+    try flags.addFlag(verbose_flag, &diagnostics);
 
     defer flags.deinit();
 
@@ -114,8 +118,10 @@ test "parse a command line having a boolean flag without explicit value" {
 
 test "parse a command line having a boolean flag without explicit value followed by arguments" {
     var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
-    try flags.addFlag(verbose_flag);
+    try flags.addFlag(verbose_flag, &diagnostics);
 
     defer flags.deinit();
 
@@ -138,8 +144,10 @@ test "parse a command line having a boolean flag without explicit value followed
 
 test "parse a command line having a boolean flag with explicit value followed by arguments" {
     var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
-    try flags.addFlag(verbose_flag);
+    try flags.addFlag(verbose_flag, &diagnostics);
 
     defer flags.deinit();
 
@@ -162,8 +170,10 @@ test "parse a command line having a boolean flag with explicit value followed by
 
 test "parse a command line having a flag with explicit value followed by arguments" {
     var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
     const timeout_flag = Flag.builder("timeout", "Define timeout", FlagType.int64).build();
-    try flags.addFlag(timeout_flag);
+    try flags.addFlag(timeout_flag, &diagnostics);
 
     defer flags.deinit();
 
@@ -186,8 +196,10 @@ test "parse a command line having a flag with explicit value followed by argumen
 
 test "parse a command line having flags and no arguments" {
     var flags = Flags.init(std.testing.allocator);
-    try flags.addFlag(Flag.builder("augend", "First argument to add", FlagType.int64).build());
-    try flags.addFlag(Flag.builder("addend", "Second argument to add", FlagType.int64).build());
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(Flag.builder("augend", "First argument to add", FlagType.int64).build(), &diagnostics);
+    try flags.addFlag(Flag.builder("addend", "Second argument to add", FlagType.int64).build(), &diagnostics);
 
     defer flags.deinit();
 
@@ -210,9 +222,11 @@ test "parse a command line having flags and no arguments" {
 
 test "parse a command line having a few flags and arguments" {
     var flags = Flags.init(std.testing.allocator);
-    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).withShortName('n').build());
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).withShortName('n').build(), &diagnostics);
 
     defer flags.deinit();
 
@@ -238,9 +252,11 @@ test "parse a command line having a few flags and arguments" {
 
 test "parse a command line with flags having default value but with command line containing a different value" {
     var flags = Flags.init(std.testing.allocator);
-    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(), &diagnostics);
 
     defer flags.deinit();
 
@@ -266,8 +282,10 @@ test "parse a command line with flags having default value but with command line
 
 test "parse a command line with flags for a command which has child commands" {
     var flags = Flags.init(std.testing.allocator);
-    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(), &diagnostics);
 
     defer flags.deinit();
 
@@ -291,8 +309,10 @@ test "parse a command line with flags for a command which has child commands" {
 
 test "parse a command line with flags containing explicit boolean value for a command which has child commands" {
     var flags = Flags.init(std.testing.allocator);
-    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(), &diagnostics);
 
     defer flags.deinit();
 

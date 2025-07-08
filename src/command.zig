@@ -5,7 +5,8 @@ const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const FlagValue = @import("flags.zig").FlagValue;
-const FlagValueError = @import("flags.zig").FlagValueError;
+const FlagValueError = @import("flags.zig").FlagValueGetError;
+const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const ParsedFlag = @import("flags.zig").ParsedFlag;
@@ -62,16 +63,17 @@ pub const Command = struct {
     }
 
     pub fn addFlag(self: *Command, flag: Flag) !void {
+        var diagnostics: Diagnostics = .{};
         if (flag.persistent) {
             if (self.persistent_flags == null) {
                 self.persistent_flags = Flags.init(self.allocator);
             }
-            try self.persistent_flags.?.addFlag(flag);
+            try self.persistent_flags.?.addFlag(flag, &diagnostics);
         } else {
             if (self.local_flags == null) {
                 self.local_flags = Flags.init(self.allocator);
             }
-            try self.local_flags.?.addFlag(flag);
+            try self.local_flags.?.addFlag(flag, &diagnostics);
         }
     }
 

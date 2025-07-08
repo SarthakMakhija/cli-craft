@@ -1,17 +1,23 @@
 const std = @import("std");
+const Diagnostics = @import("diagnostics.zig").Diagnostics;
+const DiagnosticType = @import("diagnostics.zig").DiagnosticType;
 
 pub const FlagAddError = error{
     FlagNameAlreadyExists,
     FlagShortNameAlreadyExists,
 };
 
-pub const FlagValueError = error{
-    InvalidBooleanFormat,
-    InvalidIntegerFormat,
+pub const FlagValueGetError = error{
     FlagTypeMismatch,
     FlagNotFound,
-    FlagValueNotProvided,
 };
+
+pub const FlagValueConversionError = error{
+    InvalidBoolean,
+    InvalidInteger,
+};
+
+pub const FlagErrors = FlagAddError || FlagValueGetError || FlagValueConversionError;
 
 pub const Flags = struct {
     flag_by_name: std.StringHashMap(Flag),
@@ -24,13 +30,13 @@ pub const Flags = struct {
         };
     }
 
-    pub fn addFlag(self: *Flags, flag: Flag) !void {
+    pub fn addFlag(self: *Flags, flag: Flag, diagnostics: *Diagnostics) !void {
         if (self.flag_by_name.contains(flag.name)) {
-            return FlagAddError.FlagNameAlreadyExists;
+            return diagnostics.reportAndFail(.{ .FlagNameAlreadyExists = .{ .flag_name = flag.name } });
         }
         if (flag.short_name) |short_name| {
             if (self.short_name_to_long_name.contains(short_name)) {
-                return FlagAddError.FlagShortNameAlreadyExists;
+                return diagnostics.reportAndFail(.{ .FlagShortNameAlreadyExists = .{ .short_name = short_name, .existing_flag_name = flag.name } });
             }
         }
 
@@ -81,7 +87,8 @@ pub const Flags = struct {
                     return FlagAddError.FlagShortNameAlreadyExists;
                 }
             }
-            try self.addFlag(other_flag.*);
+            var diagnostics: Diagnostics = .{};
+            try self.addFlag(other_flag.*, &diagnostics);
         }
     }
 
@@ -176,7 +183,7 @@ pub const Flag = struct {
         return name;
     }
 
-    pub fn toFlagValue(self: Flag, value: []const u8) !FlagValue {
+    pub fn toFlagValue(self: Flag, value: []const u8) FlagValueConversionError!FlagValue {
         return switch (self.flag_type) {
             .boolean => {
                 if (std.mem.eql(u8, value, "true")) {
@@ -184,12 +191,12 @@ pub const Flag = struct {
                 } else if (std.mem.eql(u8, value, "false")) {
                     return FlagValue.type_boolean(false);
                 } else {
-                    return FlagValueError.InvalidBooleanFormat;
+                    return FlagValueConversionError.InvalidBoolean;
                 }
             },
             .int64 => {
                 const parsed = std.fmt.parseInt(i64, value, 10) catch {
-                    return FlagValueError.InvalidIntegerFormat;
+                    return FlagValueConversionError.InvalidInteger;
                 };
                 return FlagValue.type_int64(parsed);
             },
@@ -262,27 +269,27 @@ pub const ParsedFlags = struct {
         try self.flag_by_name.put(flag.name, flag);
     }
 
-    pub fn getBoolean(self: ParsedFlags, name: []const u8) !bool {
-        const flag = self.flag_by_name.get(name) orelse return FlagValueError.FlagNotFound;
+    pub fn getBoolean(self: ParsedFlags, name: []const u8) FlagValueGetError!bool {
+        const flag = self.flag_by_name.get(name) orelse return FlagValueGetError.FlagNotFound;
         switch (flag.value) {
             .boolean => return flag.value.boolean,
-            else => return FlagValueError.FlagTypeMismatch,
+            else => return FlagValueGetError.FlagTypeMismatch,
         }
     }
 
-    pub fn getInt64(self: ParsedFlags, name: []const u8) !i64 {
-        const flag = self.flag_by_name.get(name) orelse return FlagValueError.FlagNotFound;
+    pub fn getInt64(self: ParsedFlags, name: []const u8) FlagValueGetError!i64 {
+        const flag = self.flag_by_name.get(name) orelse return FlagValueGetError.FlagNotFound;
         switch (flag.value) {
             .int64 => return flag.value.int64,
-            else => return FlagValueError.FlagTypeMismatch,
+            else => return FlagValueGetError.FlagTypeMismatch,
         }
     }
 
-    pub fn getString(self: ParsedFlags, name: []const u8) ![]const u8 {
-        const flag = self.flag_by_name.get(name) orelse return FlagValueError.FlagNotFound;
+    pub fn getString(self: ParsedFlags, name: []const u8) FlagValueGetError![]const u8 {
+        const flag = self.flag_by_name.get(name) orelse return FlagValueGetError.FlagNotFound;
         switch (flag.value) {
             .string => return flag.value.string,
-            else => return FlagValueError.FlagTypeMismatch,
+            else => return FlagValueGetError.FlagTypeMismatch,
         }
     }
 
@@ -430,13 +437,17 @@ test "attempt to add a flag with an existing name" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(namespace_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
 
     const namespace_counting_flag = Flag.builder("namespace", "Count namespaces", FlagType.int64)
         .withShortName('n')
         .build();
 
-    try std.testing.expectError(FlagAddError.FlagNameAlreadyExists, flags.addFlag(namespace_counting_flag));
+    try std.testing.expectError(FlagAddError.FlagNameAlreadyExists, flags.addFlag(namespace_counting_flag, &diagnostics));
+
+    const diagnostic_type = diagnostics.diagnostics_type.?.FlagNameAlreadyExists;
+    try std.testing.expectEqualStrings("namespace", diagnostic_type.flag_name);
 }
 
 test "attempt to add a flag with an existing short name" {
@@ -447,13 +458,17 @@ test "attempt to add a flag with an existing short name" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(namespace_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
 
     const namespace_counting_flag = Flag.builder("counter", "Count namespaces", FlagType.int64)
         .withShortName('n')
         .build();
 
-    try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.addFlag(namespace_counting_flag));
+    try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.addFlag(namespace_counting_flag, &diagnostics));
+
+    const diagnostic_type = diagnostics.diagnostics_type.?.FlagShortNameAlreadyExists;
+    try std.testing.expectEqual('n', diagnostic_type.short_name);
 }
 
 test "add a flag and check its existence by name" {
@@ -464,7 +479,8 @@ test "add a flag and check its existence by name" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(namespace_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("namespace").?.name);
 }
@@ -477,7 +493,8 @@ test "add a flag and check its existence by short name" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(namespace_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
 }
@@ -535,11 +552,12 @@ test "merge flags containing unique flags" {
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
 
+    var diagnostics: Diagnostics = .{};
     try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .build());
+        .build(), &diagnostics);
 
-    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
+    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
 
     try flags.merge(&other_flags);
 
@@ -554,12 +572,13 @@ test "merge flags containing flags with same name" {
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
 
+    var diagnostics: Diagnostics = .{};
     try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .build());
+        .build(), &diagnostics);
 
-    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
-    try other_flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).build());
+    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
+    try other_flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).build(), &diagnostics);
 
     try flags.merge(&other_flags);
 
@@ -575,14 +594,15 @@ test "merge flags with conflicting short names" {
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
 
+    var diagnostics: Diagnostics = .{};
     try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
-        .build());
+        .build(), &diagnostics);
 
-    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
+    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
     try other_flags.addFlag(Flag.builder("new", "Create new object", FlagType.string)
         .withShortName('n')
-        .build());
+        .build(), &diagnostics);
 
     try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.merge(&other_flags));
 }
@@ -610,7 +630,7 @@ test "add a parsed boolean flag and attempt to get an i64 flag" {
     defer parsed_flags.deinit();
 
     try parsed_flags.addFlag(verbose_flag);
-    try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getInt64("verbose"));
+    try std.testing.expectError(FlagValueGetError.FlagTypeMismatch, parsed_flags.getInt64("verbose"));
 }
 
 test "add a parsed int64 flag" {
@@ -630,7 +650,7 @@ test "add a parsed int64 flag and attempt to get a string flag" {
     defer parsed_flags.deinit();
 
     try parsed_flags.addFlag(counting_flag);
-    try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getString("count"));
+    try std.testing.expectError(FlagValueGetError.FlagTypeMismatch, parsed_flags.getString("count"));
 }
 
 test "add a parsed string flag" {
@@ -650,7 +670,7 @@ test "add a parsed string flag and attempt to get a boolean flag" {
     defer parsed_flags.deinit();
 
     try parsed_flags.addFlag(namespace_flag);
-    try std.testing.expectError(FlagValueError.FlagTypeMismatch, parsed_flags.getBoolean("namespace"));
+    try std.testing.expectError(FlagValueGetError.FlagTypeMismatch, parsed_flags.getBoolean("namespace"));
 }
 
 test "add a parsed flag with default value" {
@@ -663,7 +683,8 @@ test "add a parsed flag with default value" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(timeout_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(timeout_flag, &diagnostics);
 
     try flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
@@ -682,7 +703,8 @@ test "attempt to add a parsed flag with default value when the flag is already p
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(timeout_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(timeout_flag, &diagnostics);
 
     try flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
@@ -705,8 +727,9 @@ test "add a couple of parsed flags with default value" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(timeout_flag);
-    try flags.addFlag(verbose_flag);
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(timeout_flag, &diagnostics);
+    try flags.addFlag(verbose_flag, &diagnostics);
 
     try flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
