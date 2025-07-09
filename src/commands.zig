@@ -40,11 +40,11 @@ pub const Commands = struct {
     }
 
     pub fn add_allow_parent(self: *Commands, command: Command) !void {
-        return self.add(command, true);
+        return try self.add(command, true);
     }
 
     pub fn add_disallow_parent(self: *Commands, command: Command) !void {
-        return self.add(command, false);
+        return try self.add(command, false);
     }
 
     pub fn get(self: Commands, name: []const u8) ?Command {

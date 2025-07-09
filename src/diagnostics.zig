@@ -2,31 +2,33 @@ const std = @import("std");
 const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
 
+const ErrorLog = @import("log.zig").ErrorLog;
+
 pub const Diagnostics = struct {
     diagnostics_type: ?DiagnosticType = null,
 
-    fn print(self: Diagnostics) void {
+    fn print(self: Diagnostics, error_log: ErrorLog) void {
         if (self.diagnostics_type) |diagnostics_type| switch (diagnostics_type) {
             .FlagNameAlreadyExists => |context| {
-                std.debug.print("Error: Flag name '{s}' already exists.\n", .{context.flag_name});
+                error_log.log("Error: Flag name '{s}' already exists.\n", .{context.flag_name});
             },
             .FlagShortNameAlreadyExists => |context| {
-                std.debug.print("Error: Flag short name '-{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name });
+                error_log.log("Error: Flag short name '-{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name });
             },
             .FlagShortNameMergeConflict => |context| {
-                std.debug.print("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name });
+                error_log.log("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name });
             },
             .InvalidBoolean => |context| {
-                std.debug.print("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name });
+                error_log.log("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name });
             },
             .InvalidInteger => |context| {
-                std.debug.print("Error: Invalid integer value '{s}' for flag '{s}'. Expected a number.\n", .{ context.value, context.flag_name });
+                error_log.log("Error: Invalid integer value '{s}' for flag '{s}'. Expected a number.\n", .{ context.value, context.flag_name });
             },
             .FlagNotFound => |context| {
-                std.debug.print("Error: Flag '{s}' not found.\n", .{context.flag_name});
+                error_log.log("Error: Flag '{s}' not found.\n", .{context.flag_name});
             },
             .FlagTypeMismatch => |context| {
-                std.debug.print("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n", .{ context.flag_name, @tagName(context.expected_type), context.value });
+                error_log.log("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n", .{ context.flag_name, @tagName(context.expected_type), context.value });
             },
         };
     }
