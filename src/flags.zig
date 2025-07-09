@@ -5,6 +5,7 @@ const DiagnosticType = @import("diagnostics.zig").DiagnosticType;
 pub const FlagAddError = error{
     FlagNameAlreadyExists,
     FlagShortNameAlreadyExists,
+    FlagShortNameMergeConflict,
 };
 
 pub const FlagValueGetError = error{
@@ -71,7 +72,7 @@ pub const Flags = struct {
         }
     }
 
-    pub fn merge(self: *Flags, other: *const Flags) !void {
+    pub fn merge(self: *Flags, other: *const Flags, diagnostics: *Diagnostics) !void {
         var other_iterator = other.flag_by_name.valueIterator();
         while (other_iterator.next()) |other_flag| {
             if (self.flag_by_name.contains(other_flag.name)) {
@@ -81,14 +82,10 @@ pub const Flags = struct {
             // If the flag has a short name, check for conflicts.
             if (other_flag.short_name) |other_short_name| {
                 if (self.short_name_to_long_name.contains(other_short_name)) {
-                    // Short name already exists in 'self', but the long name is different (checked above).
-                    // This is an ambiguous definition and should be an error.
-                    std.debug.print("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ other_short_name, other_flag.name, self.short_name_to_long_name.get(other_short_name).? });
-                    return FlagAddError.FlagShortNameAlreadyExists;
+                    return diagnostics.reportAndFail(.{ .FlagShortNameMergeConflict = .{ .short_name = other_short_name, .flag_name = other_flag.name, .conflicting_flag_name = self.short_name_to_long_name.get(other_short_name).? } });
                 }
             }
-            var diagnostics: Diagnostics = .{};
-            try self.addFlag(other_flag.*, &diagnostics);
+            try self.addFlag(other_flag.*, diagnostics);
         }
     }
 
@@ -597,7 +594,7 @@ test "merge flags containing unique flags" {
 
     try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
 
-    try flags.merge(&other_flags);
+    try flags.merge(&other_flags, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
     try std.testing.expectEqualStrings("verbose", flags.get("verbose").?.name);
@@ -618,7 +615,7 @@ test "merge flags containing flags with same name" {
     try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
     try other_flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).build(), &diagnostics);
 
-    try flags.merge(&other_flags);
+    try flags.merge(&other_flags, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
     try std.testing.expectEqualStrings("default_namespace", flags.get("n").?.default_value.?.string);
@@ -642,7 +639,12 @@ test "merge flags with conflicting short names" {
         .withShortName('n')
         .build(), &diagnostics);
 
-    try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.merge(&other_flags));
+    try std.testing.expectError(FlagAddError.FlagShortNameMergeConflict, flags.merge(&other_flags, &diagnostics));
+
+    const diagnostic_type = diagnostics.diagnostics_type.?.FlagShortNameMergeConflict;
+    try std.testing.expectEqual('n', diagnostic_type.short_name);
+    try std.testing.expectEqualStrings("new", diagnostic_type.flag_name);
+    try std.testing.expectEqualStrings("namespace", diagnostic_type.conflicting_flag_name);
 }
 
 test "build a parsed flag with name and value" {

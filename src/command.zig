@@ -89,7 +89,8 @@ pub const Command = struct {
         var parsed_flags = ParsedFlags.init(allocator);
         defer parsed_flags.deinit();
 
-        return self.executeInternal(arguments, &flags, &parsed_flags, allocator);
+        var diagnostics: Diagnostics = .{};
+        return self.executeInternal(arguments, &flags, &parsed_flags, &diagnostics, allocator);
     }
 
     pub fn deinit(self: *Command) void {
@@ -102,13 +103,15 @@ pub const Command = struct {
         }
     }
 
-    fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, inherited_parsed_flags: *ParsedFlags, allocator: std.mem.Allocator) !void {
+    fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, inherited_parsed_flags: *ParsedFlags, diagnostics: *Diagnostics, allocator: std.mem.Allocator) !void {
         var all_flags = Flags.init(allocator);
         defer all_flags.deinit();
-        try self.merge_flags(inherited_flags, &all_flags, true);
+
+        try self.merge_flags(inherited_flags, &all_flags, true, diagnostics);
 
         var parsed_flags = ParsedFlags.init(allocator);
         defer parsed_flags.deinit();
+
         try parsed_flags.merge(inherited_parsed_flags);
 
         var parsed_arguments = std.ArrayList([]const u8).init(allocator);
@@ -116,7 +119,7 @@ pub const Command = struct {
 
         switch (self.action) {
             .executable => |executable_fn| {
-                var command_line_parser = CommandLineParser.init(arguments, all_flags);
+                var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
                 try command_line_parser.parse(&parsed_flags, &parsed_arguments, false);
 
                 if (self.argument_specification) |argument_specification| {
@@ -127,7 +130,7 @@ pub const Command = struct {
                 return executable_fn(parsed_flags, parsed_arguments.items);
             },
             .subcommands => |sub_commands| {
-                var command_line_parser = CommandLineParser.init(arguments, all_flags);
+                var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
                 try command_line_parser.parse(&parsed_flags, &parsed_arguments, true);
 
                 if (parsed_arguments.items.len == 0) {
@@ -139,24 +142,24 @@ pub const Command = struct {
                 var child_flags = Flags.init(allocator);
                 defer child_flags.deinit();
 
-                try self.merge_flags(inherited_flags, &child_flags, false);
+                try self.merge_flags(inherited_flags, &child_flags, false, diagnostics);
                 try child_flags.addFlagsWithDefaultValueTo(&parsed_flags);
 
-                return sub_command.executeInternal(arguments, &child_flags, &parsed_flags, allocator);
+                return sub_command.executeInternal(arguments, &child_flags, &parsed_flags, diagnostics, allocator);
             },
         }
     }
 
-    fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags, should_merge_local_flags: bool) !void {
+    fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags, should_merge_local_flags: bool, diagnostics: *Diagnostics) !void {
         if (should_merge_local_flags) {
             if (self.local_flags) |local_flags| {
-                try target_flags.merge(&local_flags);
+                try target_flags.merge(&local_flags, diagnostics);
             }
         }
         if (self.persistent_flags) |persistent_flags| {
-            try target_flags.merge(&persistent_flags);
+            try target_flags.merge(&persistent_flags, diagnostics);
         }
-        try target_flags.merge(inherited_flags);
+        try target_flags.merge(inherited_flags, diagnostics);
     }
 };
 

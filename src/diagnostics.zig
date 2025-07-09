@@ -13,6 +13,9 @@ pub const Diagnostics = struct {
             .FlagShortNameAlreadyExists => |context| {
                 std.debug.print("Error: Flag short name '-{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name });
             },
+            .FlagShortNameMergeConflict => |context| {
+                std.debug.print("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name });
+            },
             .InvalidBoolean => |context| {
                 std.debug.print("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name });
             },
@@ -33,6 +36,7 @@ pub const Diagnostics = struct {
         return switch (diagnostic_type) {
             .FlagNameAlreadyExists => FlagErrors.FlagNameAlreadyExists,
             .FlagShortNameAlreadyExists => FlagErrors.FlagShortNameAlreadyExists,
+            .FlagShortNameMergeConflict => FlagErrors.FlagShortNameMergeConflict,
             .InvalidBoolean => FlagErrors.InvalidBoolean,
             .InvalidInteger => FlagErrors.InvalidInteger,
             .FlagNotFound => FlagErrors.FlagNotFound,
@@ -48,6 +52,11 @@ pub const DiagnosticType = union(enum) {
     FlagShortNameAlreadyExists: struct {
         short_name: u8,
         existing_flag_name: []const u8,
+    },
+    FlagShortNameMergeConflict: struct {
+        short_name: u8,
+        flag_name: []const u8,
+        conflicting_flag_name: []const u8,
     },
     InvalidBoolean: struct {
         flag_name: []const u8,
