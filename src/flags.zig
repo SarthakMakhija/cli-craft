@@ -183,7 +183,7 @@ pub const Flag = struct {
         return name;
     }
 
-    pub fn toFlagValue(self: Flag, value: []const u8) FlagValueConversionError!FlagValue {
+    pub fn toFlagValue(self: Flag, value: []const u8, diagnostics: *Diagnostics) !FlagValue {
         return switch (self.flag_type) {
             .boolean => {
                 if (std.mem.eql(u8, value, "true")) {
@@ -191,12 +191,18 @@ pub const Flag = struct {
                 } else if (std.mem.eql(u8, value, "false")) {
                     return FlagValue.type_boolean(false);
                 } else {
-                    return FlagValueConversionError.InvalidBoolean;
+                    return diagnostics.reportAndFail(.{ .InvalidBoolean = .{
+                        .flag_name = self.name,
+                        .value = value,
+                    } });
                 }
             },
             .int64 => {
                 const parsed = std.fmt.parseInt(i64, value, 10) catch {
-                    return FlagValueConversionError.InvalidInteger;
+                    return diagnostics.reportAndFail(.{ .InvalidInteger = .{
+                        .flag_name = self.name,
+                        .value = value,
+                    } });
                 };
                 return FlagValue.type_int64(parsed);
             },
@@ -517,7 +523,9 @@ test "convert a string to true boolean flag value" {
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
         .build();
 
-    const flag_value = try verbose_flag.toFlagValue("true");
+    var diagnostics: Diagnostics = .{};
+    const flag_value = try verbose_flag.toFlagValue("true", &diagnostics);
+
     try std.testing.expect(flag_value.boolean);
 }
 
@@ -525,23 +533,53 @@ test "convert a string to false boolean flag value" {
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
         .build();
 
-    const flag_value = try verbose_flag.toFlagValue("false");
+    var diagnostics: Diagnostics = .{};
+    const flag_value = try verbose_flag.toFlagValue("false", &diagnostics);
+
     try std.testing.expect(flag_value.boolean == false);
+}
+
+test "attempt to convert a string to true boolean flag value" {
+    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
+        .build();
+
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(FlagValueConversionError.InvalidBoolean, verbose_flag.toFlagValue("nothing", &diagnostics));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.InvalidBoolean;
+    try std.testing.expectEqualStrings("verbose", diagnostics_type.flag_name);
+    try std.testing.expectEqual("nothing", diagnostics_type.value);
 }
 
 test "convert a string to int64 flag value" {
     const count_flag = Flag.builder("count", "Count items", FlagType.int64)
         .build();
 
-    const flag_value = try count_flag.toFlagValue("123");
+    var diagnostics: Diagnostics = .{};
+    const flag_value = try count_flag.toFlagValue("123", &diagnostics);
+
     try std.testing.expectEqual(123, flag_value.int64);
+}
+
+test "attempt to convert a string to int64 flag value" {
+    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
+        .build();
+
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(FlagValueConversionError.InvalidInteger, count_flag.toFlagValue("nothing", &diagnostics));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.InvalidInteger;
+    try std.testing.expectEqualStrings("count", diagnostics_type.flag_name);
+    try std.testing.expectEqual("nothing", diagnostics_type.value);
 }
 
 test "convert a string to string flag value" {
     const namespace_flag = Flag.builder("namespace", "Define namespace", FlagType.string)
         .build();
 
-    const flag_value = try namespace_flag.toFlagValue("cli-craft");
+    var diagnostics: Diagnostics = .{};
+    const flag_value = try namespace_flag.toFlagValue("cli-craft", &diagnostics);
+
     try std.testing.expectEqualStrings("cli-craft", flag_value.string);
 }
 
