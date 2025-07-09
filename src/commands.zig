@@ -8,6 +8,8 @@ const Arguments = @import("arguments.zig").Arguments;
 const StringDistance = @import("string-distance.zig").StringDistance;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
+const ErrorLog = @import("log.zig").ErrorLog;
+
 const BestDistance = 3;
 
 pub const CommandAddError = error{
@@ -29,6 +31,7 @@ pub const CommandSuggestion = struct {
 pub const Commands = struct {
     commands: std.StringHashMap(Command),
     allocator: std.mem.Allocator,
+    error_log: ErrorLog,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -36,6 +39,7 @@ pub const Commands = struct {
         return .{
             .commands = std.StringHashMap(Command).init(allocator),
             .allocator = allocator,
+            .error_log = ErrorLog.init(std.io.getStdErr().writer()),
         };
     }
 
@@ -65,6 +69,7 @@ pub const Commands = struct {
         allow_parent: bool,
     ) !void {
         if (!allow_parent and command.has_parent) {
+            self.error_log.log("Error: Child command command '{s}' added to Commands.\n", .{command.name});
             return CommandAddError.CommandHasAParent;
         }
         const name = command.name;
@@ -109,11 +114,13 @@ pub const Commands = struct {
 
     fn ensureCommandDoesNotExist(self: Commands, command: Command) !void {
         if (self.commands.contains(command.name)) {
+            self.error_log.log("Error: Command name '{s}' already exists.\n", .{command.name});
             return CommandAddError.CommandNameAlreadyExists;
         }
         if (command.aliases) |aliases| {
             for (aliases) |alias| {
                 if (self.commands.contains(alias)) {
+                    self.error_log.log("Error: Command alias '{s}' already exists.\n", .{alias});
                     return CommandAddError.CommandAliasAlreadyExists;
                 }
             }

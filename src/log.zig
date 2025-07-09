@@ -3,7 +3,7 @@ const std = @import("std");
 pub const ErrorLog = struct {
     writer: std.fs.File.Writer,
 
-    fn init(writer: std.fs.File.Writer) ErrorLog {
+    pub fn init(writer: std.fs.File.Writer) ErrorLog {
         return .{
             .writer = writer,
         };
