@@ -43,11 +43,11 @@ pub const Commands = struct {
         };
     }
 
-    pub fn add_allow_parent(self: *Commands, command: Command) !void {
+    pub fn add_allow_child(self: *Commands, command: Command) !void {
         return try self.add(command, true);
     }
 
-    pub fn add_disallow_parent(self: *Commands, command: Command) !void {
+    pub fn add_disallow_child(self: *Commands, command: Command) !void {
         return try self.add(command, false);
     }
 
@@ -66,9 +66,9 @@ pub const Commands = struct {
     fn add(
         self: *Commands,
         command: Command,
-        allow_parent: bool,
+        allow_child: bool,
     ) !void {
-        if (!allow_parent and command.has_parent) {
+        if (!allow_child and command.has_parent) {
             self.error_log.log("Error: Child command command '{s}' added to Commands.\n", .{command.name});
             return CommandAddError.CommandHasAParent;
         }
@@ -148,7 +148,7 @@ test "attempt to add a command which has a parent" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try std.testing.expectError(CommandAddError.CommandHasAParent, commands.add_disallow_parent(get_command));
+    try std.testing.expectError(CommandAddError.CommandHasAParent, commands.add_disallow_child(get_command));
 }
 
 test "add a command which has a child" {
@@ -166,7 +166,7 @@ test "add a command which has a child" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(kubectl_command);
+    try commands.add_disallow_child(kubectl_command);
     const retrieved = commands.get("kubectl");
 
     try std.testing.expect(retrieved != null);
@@ -185,7 +185,7 @@ test "add a command with a name" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
     const retrieved = commands.get("stringer");
 
     try std.testing.expect(retrieved != null);
@@ -205,7 +205,7 @@ test "add a command with a name and an alias" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
     const retrieved = commands.get("str");
 
     try std.testing.expect(retrieved != null);
@@ -225,7 +225,7 @@ test "add a command with a name and a couple of aliases" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
     try std.testing.expectEqualStrings("stringer", commands.get("str").?.name);
     try std.testing.expectEqualStrings("stringer", commands.get("strm").?.name);
 }
@@ -241,10 +241,10 @@ test "attempt to add a command with an existing name" {
     defer commands.deinit();
 
     const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
 
     const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, std.testing.allocator);
-    try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_parent(another_command));
+    try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_child(another_command));
 }
 
 test "attempt to add a command with an existing alias" {
@@ -260,13 +260,13 @@ test "attempt to add a command with an existing alias" {
     var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
 
     var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, std.testing.allocator);
     another_command.addAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
-    try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_parent(another_command));
+    try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_child(another_command));
 }
 
 test "get suggestions for a command (1)" {
@@ -279,9 +279,9 @@ test "get suggestions for a command (1)" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
-    try commands.add_disallow_parent(Command.init("str", "short for stringer", runnable, std.testing.allocator));
-    try commands.add_disallow_parent(Command.init("strm", "short for stringer", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("strm", "short for stringer", runnable, std.testing.allocator));
 
     var suggestions = try commands.suggestions_for("strn");
     defer suggestions.deinit();
@@ -301,9 +301,9 @@ test "get suggestions for a command (2)" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
-    try commands.add_disallow_parent(Command.init("str", "short for stringer", runnable, std.testing.allocator));
-    try commands.add_disallow_parent(Command.init("zig", "language", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("zig", "language", runnable, std.testing.allocator));
 
     var suggestions = try commands.suggestions_for("string");
     defer suggestions.deinit();
@@ -332,7 +332,7 @@ test "execute a command" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
     try commands.execute(&arguments);
@@ -356,7 +356,7 @@ test "execute a command with a subcommand" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(kubectl_command);
+    try commands.add_disallow_child(kubectl_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
     try commands.execute(&arguments);
@@ -377,7 +377,7 @@ test "attempt to execute a command with mismatch in argument specification" {
     var commands = Commands.init(std.testing.allocator);
     defer commands.deinit();
 
-    try commands.add_disallow_parent(command);
+    try commands.add_disallow_child(command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "6", "3" });
     try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, commands.execute(&arguments));
