@@ -8,6 +8,7 @@ const Arguments = @import("arguments.zig").Arguments;
 const StringDistance = @import("string-distance.zig").StringDistance;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
+const Diagnostics = @import("diagnostics.zig").Diagnostics;
 const ErrorLog = @import("log.zig").ErrorLog;
 
 const BestDistance = 3;
@@ -86,7 +87,11 @@ pub const Commands = struct {
         const command_name = arguments.next() orelse return CommandExecutionError.MissingCommandNameToExecute;
         const command = self.get(command_name) orelse return CommandExecutionError.CommandNotAdded;
 
-        return try command.execute(arguments, self.allocator);
+        var diagnostics: Diagnostics = .{};
+        return command.execute(arguments, &diagnostics, self.allocator) catch |err| {
+            diagnostics.log_using(self.error_log);
+            return err;
+        };
     }
 
     fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList(CommandSuggestion) {

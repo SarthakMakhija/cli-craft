@@ -1,6 +1,7 @@
 const std = @import("std");
 const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
+const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
 
 const ErrorLog = @import("log.zig").ErrorLog;
 
@@ -30,6 +31,18 @@ pub const Diagnostics = struct {
             .FlagTypeMismatch => |context| {
                 error_log.log("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n", .{ context.flag_name, @tagName(context.expected_type), context.value });
             },
+            .NoFlagsAddedToCommand => |context| {
+                error_log.log("Error: No flags added to the command but found the flag '{s}'.\n", .{context.parsed_flag});
+            },
+            .NoFlagValueProvided => |context| {
+                error_log.log("Error: No flag value was provided for the flag '{s}'.\n", .{context.parsed_flag});
+            },
+            .NoSubcommandProvided => |context| {
+                error_log.log("Error: No subcommand provided for the command '{s}'.\n", .{context.command});
+            },
+            .SubcommandNotAddedToParentCommand => |context| {
+                error_log.log("Error: Subcommand '{s}' not added to the parent command '{s}'.\n", .{ context.subcommand, context.command });
+            },
         };
     }
 
@@ -43,6 +56,10 @@ pub const Diagnostics = struct {
             .InvalidInteger => FlagErrors.InvalidInteger,
             .FlagNotFound => FlagErrors.FlagNotFound,
             .FlagTypeMismatch => FlagErrors.FlagTypeMismatch,
+            .NoFlagsAddedToCommand => CommandParsingError.NoFlagsAddedToCommand,
+            .NoFlagValueProvided => CommandParsingError.NoFlagValueProvided,
+            .NoSubcommandProvided => CommandParsingError.NoSubcommandProvided,
+            .SubcommandNotAddedToParentCommand => CommandParsingError.SubcommandNotAddedToParentCommand,
         };
     }
 };
@@ -75,5 +92,18 @@ pub const DiagnosticType = union(enum) {
         flag_name: []const u8,
         expected_type: FlagType,
         value: []const u8,
+    },
+    NoFlagsAddedToCommand: struct {
+        parsed_flag: []const u8,
+    },
+    NoFlagValueProvided: struct {
+        parsed_flag: []const u8,
+    },
+    NoSubcommandProvided: struct {
+        command: []const u8,
+    },
+    SubcommandNotAddedToParentCommand: struct {
+        command: []const u8,
+        subcommand: []const u8,
     },
 };

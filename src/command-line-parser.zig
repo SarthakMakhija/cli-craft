@@ -16,7 +16,7 @@ pub const CommandParsingError = error{
     NoSubcommandProvided,
     SubcommandNotAddedToParentCommand,
     NoFlagsAddedToCommand,
-    FlagValueNotProvided,
+    NoFlagValueProvided,
     FlagNotFound,
 };
 
@@ -43,13 +43,17 @@ pub const CommandLineParser = struct {
         while (self.arguments.next()) |argument| {
             if (Flag.looksLikeFlagName(argument)) {
                 if (self.command_flags == null) {
-                    return CommandParsingError.NoFlagsAddedToCommand;
+                    return self.diagnostics.reportAndFail(.{ .NoFlagsAddedToCommand = .{
+                        .parsed_flag = argument,
+                    } });
                 }
                 if (last_flag) |flag| {
                     if (flag.flag_type == FlagType.boolean) {
                         try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
                     } else {
-                        return CommandParsingError.FlagValueNotProvided;
+                        return self.diagnostics.reportAndFail(.{ .NoFlagValueProvided = .{
+                            .parsed_flag = flag.name,
+                        } });
                     }
                 }
                 const flag_name = Flag.normalizeFlagName(argument);
@@ -86,7 +90,9 @@ pub const CommandLineParser = struct {
 
         if (last_flag) |flag| {
             if (flag.flag_type != FlagType.boolean) {
-                return CommandParsingError.FlagValueNotProvided;
+                return self.diagnostics.reportAndFail(.{ .NoFlagValueProvided = .{
+                    .parsed_flag = flag.name,
+                } });
             }
             try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
             last_flag = null;

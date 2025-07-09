@@ -15,6 +15,7 @@ const CommandLineParser = @import("command-line-parser.zig").CommandLineParser;
 const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
 
 const ErrorLog = @import("log.zig").ErrorLog;
+const Commands = @import("commands.zig").Commands;
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
@@ -93,15 +94,14 @@ pub const Command = struct {
     }
 
     //TODO: print deprecated message if the command is deprecated
-    pub fn execute(self: Command, arguments: *Arguments, allocator: std.mem.Allocator) !void {
+    pub fn execute(self: Command, arguments: *Arguments, diagnostics: *Diagnostics, allocator: std.mem.Allocator) !void {
         var flags = Flags.init(allocator);
         defer flags.deinit();
 
         var parsed_flags = ParsedFlags.init(allocator);
         defer parsed_flags.deinit();
 
-        var diagnostics: Diagnostics = .{};
-        return self.executeInternal(arguments, &flags, &parsed_flags, &diagnostics, allocator);
+        return try self.executeInternal(arguments, &flags, &parsed_flags, diagnostics, allocator);
     }
 
     pub fn deinit(self: *Command) void {
@@ -144,11 +144,7 @@ pub const Command = struct {
                 var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
                 try command_line_parser.parse(&parsed_flags, &parsed_arguments, true);
 
-                if (parsed_arguments.items.len == 0) {
-                    return CommandParsingError.NoSubcommandProvided;
-                }
-                const subcommand_name = parsed_arguments.pop() orelse return CommandParsingError.NoSubcommandProvided;
-                const sub_command = sub_commands.get(subcommand_name) orelse return CommandParsingError.SubcommandNotAddedToParentCommand;
+                const sub_command = try self.get_subcommand(&parsed_arguments, sub_commands, diagnostics);
 
                 var child_flags = Flags.init(allocator);
                 defer child_flags.deinit();
@@ -171,6 +167,25 @@ pub const Command = struct {
             try target_flags.merge(&persistent_flags, diagnostics);
         }
         try target_flags.merge(inherited_flags, diagnostics);
+    }
+
+    fn get_subcommand(self: Command, parsed_arguments: *std.ArrayList([]const u8), sub_commands: Commands, diagnostics: *Diagnostics) !Command {
+        if (parsed_arguments.items.len == 0) {
+            return diagnostics.reportAndFail(.{ .NoSubcommandProvided = .{
+                .command = self.name,
+            } });
+        }
+        const subcommand_name = parsed_arguments.pop() orelse
+            return diagnostics.reportAndFail(.{ .NoSubcommandProvided = .{
+                .command = self.name,
+            } });
+
+        const sub_command = sub_commands.get(subcommand_name) orelse
+            return diagnostics.reportAndFail(.{ .SubcommandNotAddedToParentCommand = .{
+                .command = self.name,
+                .subcommand = subcommand_name,
+            } });
+        return sub_command;
     }
 };
 
@@ -346,7 +361,9 @@ test "execute a command with an executable command" {
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
     arguments.skipFirst();
 
-    try command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try command.execute(&arguments, &diagnostics, std.testing.allocator);
+
     try std.testing.expectEqual(7, add_command_result);
 }
 
@@ -369,11 +386,13 @@ test "execute a command with a subcommand" {
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
+
     try std.testing.expectEqualStrings("pods", get_command_result);
 }
 
-test "attempt to execute a command with a subcommand but with incorrect command name from the argument" {
+test "attempt to execute a command with a subcommand but with incorrect subcommand name from the argument" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
@@ -391,7 +410,8 @@ test "attempt to execute a command with a subcommand but with incorrect command 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "delete" });
     arguments.skipFirst();
 
-    try std.testing.expectError(CommandParsingError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, std.testing.allocator));
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(CommandParsingError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator));
 }
 
 test "add a local flag" {
@@ -467,7 +487,8 @@ test "execute a command passing flags and arguments" {
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
     arguments.skipFirst();
 
-    try command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try command.execute(&arguments, &diagnostics, std.testing.allocator);
     try std.testing.expectEqual(7, add_command_result);
 }
 
@@ -496,7 +517,8 @@ test "execute a command with child command passing flags and arguments 1" {
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "--verbose", "pods" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 }
 
 test "execute a command with child command passing flags and arguments 2" {
@@ -524,7 +546,8 @@ test "execute a command with child command passing flags and arguments 2" {
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 }
 
 test "execute a command with child command passing flags and arguments with a persistent flag having default value" {
@@ -554,7 +577,8 @@ test "execute a command with child command passing flags and arguments with a pe
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 }
 
 test "execute a command with child command passing flags and arguments with a local flag having default value 1" {
@@ -584,7 +608,8 @@ test "execute a command with child command passing flags and arguments with a lo
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 }
 
 test "execute a command with child command passing flags and arguments with a local flag having default value 2" {
@@ -616,7 +641,8 @@ test "execute a command with child command passing flags and arguments with a lo
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 }
 
 test "execute a command with child command passing flags and arguments with a local flag having default value 3" {
@@ -648,5 +674,6 @@ test "execute a command with child command passing flags and arguments with a lo
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "--timeout", "40", "get", "pods", "--verbose", "false" });
     arguments.skipFirst();
 
-    try kubectl_command.execute(&arguments, std.testing.allocator);
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 }
