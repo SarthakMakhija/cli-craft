@@ -5,7 +5,7 @@ const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const FlagValue = @import("flags.zig").FlagValue;
-const FlagValueError = @import("flags.zig").FlagValueGetError;
+const FlagErrors = @import("flags.zig").FlagErrors;
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 const ParsedFlags = @import("flags.zig").ParsedFlags;
@@ -13,6 +13,8 @@ const ParsedFlag = @import("flags.zig").ParsedFlag;
 
 const CommandLineParser = @import("command-line-parser.zig").CommandLineParser;
 const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
+
+const ErrorLog = @import("log.zig").ErrorLog;
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
@@ -30,6 +32,7 @@ pub const Command = struct {
     has_parent: bool = false,
     local_flags: ?Flags = null,
     persistent_flags: ?Flags = null,
+    error_log: ErrorLog,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn, allocator: std.mem.Allocator) Command {
         return .{
@@ -37,6 +40,7 @@ pub const Command = struct {
             .description = description,
             .allocator = allocator,
             .action = CommandAction.initExecutable(executable),
+            .error_log = ErrorLog.init(std.io.getStdErr().writer()),
         };
     }
 
@@ -46,6 +50,7 @@ pub const Command = struct {
             .description = description,
             .allocator = allocator,
             .action = try CommandAction.initSubcommands(allocator),
+            .error_log = ErrorLog.init(std.io.getStdErr().writer()),
         };
     }
 
@@ -64,17 +69,23 @@ pub const Command = struct {
 
     pub fn addFlag(self: *Command, flag: Flag) !void {
         var diagnostics: Diagnostics = .{};
+        var target_flags: *?Flags = undefined;
+
         if (flag.persistent) {
             if (self.persistent_flags == null) {
                 self.persistent_flags = Flags.init(self.allocator);
             }
-            try self.persistent_flags.?.addFlag(flag, &diagnostics);
+            target_flags = &self.persistent_flags;
         } else {
             if (self.local_flags == null) {
                 self.local_flags = Flags.init(self.allocator);
             }
-            try self.local_flags.?.addFlag(flag, &diagnostics);
+            target_flags = &self.local_flags;
         }
+        target_flags.*.?.addFlag(flag, &diagnostics) catch |err| {
+            diagnostics.log_using(self.error_log);
+            return err;
+        };
     }
 
     pub fn markDeprecated(self: *Command, deprecated_message: []const u8) void {
@@ -395,6 +406,18 @@ test "add a local flag" {
     try std.testing.expectEqualStrings("priority", command.local_flags.?.get("priority").?.name);
 }
 
+test "attempt to add an existing local flag" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
+    defer command.deinit();
+
+    try std.testing.expectError(FlagErrors.FlagNameAlreadyExists, command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build()));
+}
+
 test "add a persistent flag" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
@@ -405,6 +428,19 @@ test "add a persistent flag" {
     defer command.deinit();
 
     try std.testing.expectEqualStrings("priority", command.persistent_flags.?.get("priority").?.name);
+}
+
+test "attempt to add an existing persistent flag" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build());
+
+    defer command.deinit();
+
+    try std.testing.expectError(FlagErrors.FlagNameAlreadyExists, command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build()));
 }
 
 test "execute a command passing flags and arguments" {
@@ -529,7 +565,7 @@ test "execute a command with child command passing flags and arguments with a lo
             try std.testing.expectEqualStrings("pods", argument);
             try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
             try std.testing.expect(try flags.getBoolean("verbose") == false);
-            try std.testing.expectError(FlagValueError.FlagNotFound, flags.getInt64("priority"));
+            try std.testing.expectError(FlagErrors.FlagNotFound, flags.getInt64("priority"));
 
             return;
         }
@@ -560,7 +596,7 @@ test "execute a command with child command passing flags and arguments with a lo
             try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
             try std.testing.expect(try flags.getBoolean("verbose") == false);
             try std.testing.expectEqual(20, try flags.getInt64("timeout"));
-            try std.testing.expectError(FlagValueError.FlagNotFound, flags.getInt64("priority"));
+            try std.testing.expectError(FlagErrors.FlagNotFound, flags.getInt64("priority"));
 
             return;
         }
@@ -592,7 +628,7 @@ test "execute a command with child command passing flags and arguments with a lo
             try std.testing.expectEqualStrings("cli-craft", try flags.getString("namespace"));
             try std.testing.expect(try flags.getBoolean("verbose") == false);
             try std.testing.expectEqual(40, try flags.getInt64("timeout"));
-            try std.testing.expectError(FlagValueError.FlagNotFound, flags.getInt64("priority"));
+            try std.testing.expectError(FlagErrors.FlagNotFound, flags.getInt64("priority"));
 
             return;
         }

@@ -7,7 +7,7 @@ const ErrorLog = @import("log.zig").ErrorLog;
 pub const Diagnostics = struct {
     diagnostics_type: ?DiagnosticType = null,
 
-    fn print(self: Diagnostics, error_log: ErrorLog) void {
+    pub fn log_using(self: Diagnostics, error_log: ErrorLog) void {
         if (self.diagnostics_type) |diagnostics_type| switch (diagnostics_type) {
             .FlagNameAlreadyExists => |context| {
                 error_log.log("Error: Flag name '{s}' already exists.\n", .{context.flag_name});
