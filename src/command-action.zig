@@ -7,6 +7,7 @@ const CommandFn = @import("command.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
 pub const CommandAddError = error{CannotAddSubCommandToExecutable};
+const ErrorLog = @import("log.zig").ErrorLog;
 
 pub const CommandAction = union(enum) {
     executable: CommandFn,
@@ -20,9 +21,10 @@ pub const CommandAction = union(enum) {
         return .{ .subcommands = Commands.init(allocator) };
     }
 
-    pub fn addSubcommand(self: *CommandAction, subcommand: Command) !void {
+    pub fn addSubcommand(self: *CommandAction, subcommand: Command, error_log: ErrorLog) !void {
         switch (self.*) {
             .executable => {
+                error_log.log("Error: Subcommand '{s}' added to an excutable command.\n", .{subcommand.name});
                 return CommandAddError.CannotAddSubCommandToExecutable;
             },
             .subcommands => {
@@ -63,10 +65,24 @@ test "add a sub-command" {
     var command_action = try CommandAction.initSubcommands(std.testing.allocator);
     defer command_action.deinit();
 
-    try command_action.addSubcommand(command);
+    try command_action.addSubcommand(command, command.error_log);
 
     const retrieved = command_action.subcommands.get("stringer");
 
     try std.testing.expect(retrieved != null);
     try std.testing.expectEqualStrings("stringer", retrieved.?.name);
+}
+
+test "attempt to add a sub-command to an executable command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command_action = CommandAction.initExecutable(runnable);
+    defer command_action.deinit();
+
+    try std.testing.expectError(CommandAddError.CannotAddSubCommandToExecutable, command_action.addSubcommand(command, command.error_log));
 }

@@ -60,7 +60,7 @@ pub const Command = struct {
 
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         subcommand.has_parent = true;
-        try self.action.addSubcommand(subcommand.*);
+        try self.action.addSubcommand(subcommand.*, self.error_log);
     }
 
     pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) void {
