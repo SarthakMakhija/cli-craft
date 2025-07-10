@@ -1055,6 +1055,29 @@ test "execute a command with a subcommand by adding the parent command" {
     try std.testing.expectEqualStrings("pods", get_command_result);
 }
 
+test "attempt to execute a command with an unregistered command from command line" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
+
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
+    defer commands.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "subtract", "2", "4" });
+    try std.testing.expectError(CommandExecutionError.CommandNotFound, commands.execute(&arguments, &diagnostics));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.CommandNotFound;
+    try std.testing.expectEqualStrings("subtract", diagnostics_type.command);
+}
+
 test "attempt to execute a command with mismatch in argument specification" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
