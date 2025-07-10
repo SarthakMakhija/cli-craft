@@ -67,12 +67,13 @@ pub const Command = struct {
     }
 
     pub fn initParent(name: []const u8, description: []const u8, allocator: std.mem.Allocator) !Command {
+        const error_log = ErrorLog.init(std.io.getStdErr().writer());
         return .{
             .name = name,
             .description = description,
             .allocator = allocator,
-            .action = try CommandAction.initSubcommands(allocator),
-            .error_log = ErrorLog.init(std.io.getStdErr().writer()),
+            .action = try CommandAction.initSubcommands(allocator, error_log),
+            .error_log = error_log,
         };
     }
 
@@ -217,11 +218,12 @@ pub const Commands = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
+        error_log: ErrorLog,
     ) Commands {
         return .{
             .commands = std.StringHashMap(Command).init(allocator),
             .allocator = allocator,
-            .error_log = ErrorLog.init(std.io.getStdErr().writer()),
+            .error_log = error_log,
         };
     }
 
@@ -818,7 +820,7 @@ test "attempt to add a command which has a parent" {
     var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try std.testing.expectError(CommandAddError.CommandHasAParent, commands.add_disallow_child(get_command));
@@ -836,7 +838,7 @@ test "add a command which has a child" {
     var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(kubectl_command);
@@ -855,7 +857,7 @@ test "add a command with a name" {
 
     const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(command);
@@ -875,7 +877,7 @@ test "add a command with a name and an alias" {
     var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(command);
@@ -895,7 +897,7 @@ test "add a command with a name and a couple of aliases" {
     var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(command);
@@ -910,7 +912,7 @@ test "attempt to add a command with an existing name" {
         }
     }.run;
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
@@ -927,7 +929,7 @@ test "attempt to add a command with an existing alias" {
         }
     }.run;
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
@@ -949,7 +951,7 @@ test "get suggestions for a command (1)" {
         }
     }.run;
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
@@ -971,7 +973,7 @@ test "get suggestions for a command (2)" {
         }
     }.run;
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
@@ -999,7 +1001,7 @@ test "execute a command" {
 
     const command = Command.init("add", "add numbers", runnable, std.testing.allocator);
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(command);
@@ -1023,7 +1025,7 @@ test "execute a command with a subcommand by adding the parent command" {
     var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(kubectl_command);
@@ -1044,7 +1046,7 @@ test "attempt to execute a command with mismatch in argument specification" {
     var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
 
-    var commands = Commands.init(std.testing.allocator);
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
     try commands.add_disallow_child(command);

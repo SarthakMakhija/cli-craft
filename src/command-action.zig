@@ -7,6 +7,7 @@ const CommandFn = @import("commands.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
 pub const CommandAddError = error{CannotAddSubCommandToExecutable};
+
 const ErrorLog = @import("log.zig").ErrorLog;
 
 pub const CommandAction = union(enum) {
@@ -17,8 +18,8 @@ pub const CommandAction = union(enum) {
         return .{ .executable = executable };
     }
 
-    pub fn initSubcommands(allocator: std.mem.Allocator) !CommandAction {
-        return .{ .subcommands = Commands.init(allocator) };
+    pub fn initSubcommands(allocator: std.mem.Allocator, error_log: ErrorLog) !CommandAction {
+        return .{ .subcommands = Commands.init(allocator, error_log) };
     }
 
     pub fn addSubcommand(self: *CommandAction, subcommand: Command, error_log: ErrorLog) !void {
@@ -62,7 +63,8 @@ test "add a sub-command" {
     }.run;
 
     const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
-    var command_action = try CommandAction.initSubcommands(std.testing.allocator);
+
+    var command_action = try CommandAction.initSubcommands(std.testing.allocator, ErrorLog.initNoOperation());
     defer command_action.deinit();
 
     try command_action.addSubcommand(command, command.error_log);

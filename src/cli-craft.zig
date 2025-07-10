@@ -22,6 +22,7 @@ pub const ParsedFlag = @import("flags.zig").ParsedFlag;
 
 const Commands = @import("commands.zig").Commands;
 const Arguments = @import("arguments.zig").Arguments;
+const ErrorLog = @import("log.zig").ErrorLog;
 
 pub const GlobalOptions = struct {
     allocator: std.mem.Allocator,
@@ -33,12 +34,11 @@ pub const GlobalOptions = struct {
 pub const CliCraft = struct {
     options: GlobalOptions,
     commands: Commands,
+    error_log: ErrorLog,
 
     pub fn init(options: GlobalOptions) CliCraft {
-        return .{
-            .options = options,
-            .commands = Commands.init(options.allocator),
-        };
+        const error_log = ErrorLog.init(options.error_options.writer);
+        return .{ .options = options, .commands = Commands.init(options.allocator, error_log), .error_log = error_log };
     }
 
     pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) Command {
