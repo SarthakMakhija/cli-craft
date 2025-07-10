@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const Command = @import("command.zig").Command;
-const CommandFnArguments = @import("command.zig").CommandFnArguments;
+const Command = @import("commands.zig").Command;
+const CommandFnArguments = @import("commands.zig").CommandFnArguments;
 const Commands = @import("commands.zig").Commands;
-const CommandFn = @import("command.zig").CommandFn;
+const CommandFn = @import("commands.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
 pub const CommandAddError = error{CannotAddSubCommandToExecutable};

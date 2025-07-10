@@ -4,7 +4,6 @@
 const std = @import("std");
 
 // Re-exporting public API structs
-pub const Command = @import("command.zig");
 pub const Commands = @import("commands.zig");
 pub const ArgumentSpecification = @import("argument-specification.zig");
 pub const Flag = @import("flags.zig").Flag;
