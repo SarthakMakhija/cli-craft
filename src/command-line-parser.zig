@@ -44,7 +44,7 @@ pub const CommandLineParser = struct {
             if (Flag.looksLikeFlagName(argument)) {
                 if (self.command_flags == null) {
                     return self.diagnostics.reportAndFail(.{ .NoFlagsAddedToCommand = .{
-                        .parsed_flag = argument,
+                        .parsed_flag = Flag.normalizeFlagName(argument),
                     } });
                 }
                 if (last_flag) |flag| {
@@ -52,7 +52,7 @@ pub const CommandLineParser = struct {
                         try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
                     } else {
                         return self.diagnostics.reportAndFail(.{ .NoFlagValueProvided = .{
-                            .parsed_flag = flag.name,
+                            .parsed_flag = Flag.normalizeFlagName(flag.name),
                         } });
                     }
                 }
@@ -99,6 +99,104 @@ pub const CommandLineParser = struct {
         }
     }
 };
+
+const FlagErrors = @import("flags.zig").FlagErrors;
+
+test "attempt to parse a command line with no flags registered to the command" {
+    const flags: ?Flags = null;
+    var diagnostics: Diagnostics = .{};
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose" });
+    arguments.skipFirst();
+
+    var parser = CommandLineParser.init(&arguments, flags, &diagnostics);
+    try std.testing.expectError(CommandParsingError.NoFlagsAddedToCommand, parser.parse(&parsed_flags, &parsed_arguments, false));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.NoFlagsAddedToCommand;
+    try std.testing.expectEqualStrings("verbose", diagnostics_type.parsed_flag);
+}
+
+test "attempt to parse a command line without explicit value for a non-boolean flag" {
+    var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
+    const priority_flag = Flag.builder("priority", "Define priority", FlagType.int64).build();
+
+    try flags.addFlag(priority_flag, &diagnostics);
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--priority" });
+    arguments.skipFirst();
+
+    var parser = CommandLineParser.init(&arguments, flags, &diagnostics);
+    try std.testing.expectError(CommandParsingError.NoFlagValueProvided, parser.parse(&parsed_flags, &parsed_arguments, false));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.NoFlagValueProvided;
+    try std.testing.expectEqualStrings("priority", diagnostics_type.parsed_flag);
+}
+
+test "attempt to parse a command line with an unregistered flag" {
+    var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
+    const priority_flag = Flag.builder("priority", "Define priority", FlagType.int64).build();
+
+    try flags.addFlag(priority_flag, &diagnostics);
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--namespace", "cli-craft" });
+    arguments.skipFirst();
+
+    var parser = CommandLineParser.init(&arguments, flags, &diagnostics);
+    try std.testing.expectError(CommandParsingError.FlagNotFound, parser.parse(&parsed_flags, &parsed_arguments, false));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.FlagNotFound;
+    try std.testing.expectEqualStrings("namespace", diagnostics_type.flag_name);
+}
+
+test "attempt to parse a command line with an invalid integer value" {
+    var flags = Flags.init(std.testing.allocator);
+
+    var diagnostics: Diagnostics = .{};
+    const priority_flag = Flag.builder("priority", "Define priority", FlagType.int64).build();
+
+    try flags.addFlag(priority_flag, &diagnostics);
+    defer flags.deinit();
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer parsed_arguments.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--priority", "cli-craft" });
+    arguments.skipFirst();
+
+    var parser = CommandLineParser.init(&arguments, flags, &diagnostics);
+    try std.testing.expectError(FlagErrors.InvalidInteger, parser.parse(&parsed_flags, &parsed_arguments, false));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.InvalidInteger;
+    try std.testing.expectEqualStrings("priority", diagnostics_type.flag_name);
+    try std.testing.expectEqualStrings("cli-craft", diagnostics_type.value);
+}
 
 test "parse a command line having a boolean flag without explicit value" {
     var flags = Flags.init(std.testing.allocator);

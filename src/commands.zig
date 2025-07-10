@@ -243,7 +243,7 @@ pub const Commands = struct {
         const command_name = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
         const command = self.get(command_name) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name } });
 
-        return command.execute(arguments, diagnostics, self.allocator);
+        return try command.execute(arguments, diagnostics, self.allocator);
     }
 
     pub fn deinit(self: *Commands) void {
