@@ -125,7 +125,7 @@ pub const Command = struct {
         return try self.executeInternal(arguments, &flags, &parsed_flags, diagnostics, allocator);
     }
 
-    pub fn deinit(self: *Command) void {
+    fn deinit(self: *Command) void {
         self.action.deinit();
         if (self.local_flags) |*flags| {
             flags.deinit();
