@@ -14,7 +14,7 @@ pub const Diagnostics = struct {
                 error_log.log("Error: Flag name '{s}' already exists.\n", .{context.flag_name});
             },
             .FlagShortNameAlreadyExists => |context| {
-                error_log.log("Error: Flag short name '-{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name });
+                error_log.log("Error: Flag short name '{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name });
             },
             .FlagShortNameMergeConflict => |context| {
                 error_log.log("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name });
