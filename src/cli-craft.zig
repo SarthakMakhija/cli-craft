@@ -58,16 +58,22 @@ pub const CliCraft = struct {
     }
 
     pub fn addCommand(self: *CliCraft, command: Command) !void {
-        try self.commands.add_disallow_child(command);
+        var diagnostics: Diagnostics = .{};
+
+        try self.commands.add_disallow_child(command, &diagnostics);
     }
 
     pub fn execute(self: *CliCraft) !void {
-        try self.commands.execute(Arguments.init());
+        var diagnostics: Diagnostics = .{};
+
+        try self.commands.execute(Arguments.init(), &diagnostics);
     }
 
     pub fn executeWithArguments(self: *CliCraft, arguments: []const []const u8) !void {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
-        try self.commands.execute(&command_line_arguments);
+        var diagnostics: Diagnostics = .{};
+
+        try self.commands.execute(&command_line_arguments, &diagnostics);
     }
 
     pub fn deinit(self: *CliCraft) void {

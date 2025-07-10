@@ -33,7 +33,7 @@ pub const CommandAction = union(enum) {
             },
             .subcommands => {
                 subcommand.has_parent = true;
-                try self.subcommands.add_allow_child(subcommand.*);
+                try self.subcommands.add_allow_child(subcommand.*, diagnostics);
             },
         }
     }

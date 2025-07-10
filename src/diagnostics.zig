@@ -50,6 +50,15 @@ pub const Diagnostics = struct {
             .SubCommandAddedToExecutable => |context| {
                 error_log.log("Error: Subcommand '{s}' added to an executable command '{s}'.\n", .{ context.command, context.subcommand });
             },
+            .ChildCommandAdded => |context| {
+                error_log.log("Error: Child command command '{s}' added to Cli-Craft.\n", .{context.command});
+            },
+            .CommandNameAlreadyExists => |context| {
+                error_log.log("Error: Command name '{s}' already exists.\n", .{context.command});
+            },
+            .CommandAliasAlreadyExists => |context| {
+                error_log.log("Error: Command alias '{s}' already exists for the command '{s}'.\n", .{ context.alias, context.existing_command });
+            },
         };
     }
 
@@ -69,6 +78,9 @@ pub const Diagnostics = struct {
             .SubcommandNotAddedToParentCommand => CommandParsingError.SubcommandNotAddedToParentCommand,
             .SubCommandNameSameAsParent => CommandAddError.SubCommandNameSameAsParent,
             .SubCommandAddedToExecutable => CommandAddError.SubCommandAddedToExecutable,
+            .ChildCommandAdded => CommandAddError.ChildCommandAdded,
+            .CommandNameAlreadyExists => CommandAddError.CommandNameAlreadyExists,
+            .CommandAliasAlreadyExists => CommandAddError.CommandAliasAlreadyExists,
         };
     }
 };
@@ -121,5 +133,15 @@ pub const DiagnosticType = union(enum) {
     SubCommandAddedToExecutable: struct {
         command: []const u8,
         subcommand: []const u8,
+    },
+    ChildCommandAdded: struct {
+        command: []const u8,
+    },
+    CommandNameAlreadyExists: struct {
+        command: []const u8,
+    },
+    CommandAliasAlreadyExists: struct {
+        alias: []const u8,
+        existing_command: []const u8,
     },
 };

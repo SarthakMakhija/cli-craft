@@ -22,7 +22,7 @@ const Sort = std.sort;
 
 const BestDistance = 3;
 
-pub const CommandAddError = error{ CommandHasAParent, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
+pub const CommandAddError = error{ ChildCommandAdded, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
 
 pub const CommandExecutionError = error{
     MissingCommandNameToExecute,
@@ -225,27 +225,23 @@ pub const Commands = struct {
         };
     }
 
-    pub fn add_allow_child(self: *Commands, command: Command) !void {
-        return try self.add(command, true);
+    pub fn add_allow_child(self: *Commands, command: Command, diagnostics: *Diagnostics) !void {
+        return try self.add(command, true, diagnostics);
     }
 
-    pub fn add_disallow_child(self: *Commands, command: Command) !void {
-        return try self.add(command, false);
+    pub fn add_disallow_child(self: *Commands, command: Command, diagnostics: *Diagnostics) !void {
+        return try self.add(command, false, diagnostics);
     }
 
     pub fn get(self: Commands, name: []const u8) ?Command {
         return self.commands.get(name);
     }
 
-    pub fn execute(self: Commands, arguments: *Arguments) !void {
+    pub fn execute(self: Commands, arguments: *Arguments, diagnostics: *Diagnostics) !void {
         const command_name = arguments.next() orelse return CommandExecutionError.MissingCommandNameToExecute;
         const command = self.get(command_name) orelse return CommandExecutionError.CommandNotAdded;
 
-        var diagnostics: Diagnostics = .{};
-        return command.execute(arguments, &diagnostics, self.allocator) catch |err| {
-            diagnostics.log_using(self.error_log);
-            return err;
-        };
+        return command.execute(arguments, diagnostics, self.allocator);
     }
 
     pub fn deinit(self: *Commands) void {
@@ -256,18 +252,14 @@ pub const Commands = struct {
         self.commands.deinit();
     }
 
-    fn add(
-        self: *Commands,
-        command: Command,
-        allow_child: bool,
-    ) !void {
+    fn add(self: *Commands, command: Command, allow_child: bool, diagnostics: *Diagnostics) !void {
         if (!allow_child and command.has_parent) {
-            self.error_log.log("Error: Child command command '{s}' added to Commands.\n", .{command.name});
-            return CommandAddError.CommandHasAParent;
+            return diagnostics.reportAndFail(.{ .ChildCommandAdded = .{ .command = command.name } });
         }
-        const name = command.name;
-        try self.ensureCommandDoesNotExist(command);
-        try self.commands.put(name, command);
+
+        try self.ensureCommandDoesNotExist(command, diagnostics);
+        try self.commands.put(command.name, command);
+
         if (command.aliases) |aliases| {
             for (aliases) |alias| {
                 try self.commands.put(alias, command);
@@ -298,16 +290,17 @@ pub const Commands = struct {
         return suggestions;
     }
 
-    fn ensureCommandDoesNotExist(self: Commands, command: Command) !void {
+    fn ensureCommandDoesNotExist(self: Commands, command: Command, diagnostics: *Diagnostics) !void {
         if (self.commands.contains(command.name)) {
-            self.error_log.log("Error: Command name '{s}' already exists.\n", .{command.name});
-            return CommandAddError.CommandNameAlreadyExists;
+            return diagnostics.reportAndFail(.{ .CommandNameAlreadyExists = .{ .command = command.name } });
         }
         if (command.aliases) |aliases| {
             for (aliases) |alias| {
-                if (self.commands.contains(alias)) {
-                    self.error_log.log("Error: Command alias '{s}' already exists.\n", .{alias});
-                    return CommandAddError.CommandAliasAlreadyExists;
+                if (self.commands.get(alias)) |other_command| {
+                    return diagnostics.reportAndFail(.{ .CommandAliasAlreadyExists = .{
+                        .alias = alias,
+                        .existing_command = other_command.name,
+                    } });
                 }
             }
         }
@@ -821,7 +814,8 @@ test "attempt to add a command which has a parent" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try std.testing.expectError(CommandAddError.CommandHasAParent, commands.add_disallow_child(get_command));
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(CommandAddError.ChildCommandAdded, commands.add_disallow_child(get_command, &diagnostics));
 }
 
 test "add a command which has a child" {
@@ -839,7 +833,9 @@ test "add a command which has a child" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(kubectl_command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(kubectl_command, &diagnostics);
+
     const retrieved = commands.get("kubectl");
 
     try std.testing.expect(retrieved != null);
@@ -858,7 +854,9 @@ test "add a command with a name" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
+
     const retrieved = commands.get("stringer");
 
     try std.testing.expect(retrieved != null);
@@ -878,7 +876,9 @@ test "add a command with a name and an alias" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
+
     const retrieved = commands.get("str");
 
     try std.testing.expect(retrieved != null);
@@ -898,7 +898,9 @@ test "add a command with a name and a couple of aliases" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
+
     try std.testing.expectEqualStrings("stringer", commands.get("str").?.name);
     try std.testing.expectEqualStrings("stringer", commands.get("strm").?.name);
 }
@@ -914,10 +916,12 @@ test "attempt to add a command with an existing name" {
     defer commands.deinit();
 
     const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+
+    try commands.add_disallow_child(command, &diagnostics);
 
     const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
-    try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_child(another_command));
+    try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_child(another_command, &diagnostics));
 }
 
 test "attempt to add a command with an existing alias" {
@@ -933,13 +937,14 @@ test "attempt to add a command with an existing alias" {
     var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
 
     var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     another_command.addAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
-    try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_child(another_command));
+    try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_child(another_command, &diagnostics));
 }
 
 test "get suggestions for a command (1)" {
@@ -952,9 +957,10 @@ test "get suggestions for a command (1)" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
-    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
-    try commands.add_disallow_child(Command.init("strm", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator), &diagnostics);
+    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator), &diagnostics);
+    try commands.add_disallow_child(Command.init("strm", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator), &diagnostics);
 
     var suggestions = try commands.suggestions_for("strn");
     defer suggestions.deinit();
@@ -974,9 +980,10 @@ test "get suggestions for a command (2)" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
-    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
-    try commands.add_disallow_child(Command.init("zig", "language", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator), &diagnostics);
+    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator), &diagnostics);
+    try commands.add_disallow_child(Command.init("zig", "language", runnable, ErrorLog.initNoOperation(), std.testing.allocator), &diagnostics);
 
     var suggestions = try commands.suggestions_for("string");
     defer suggestions.deinit();
@@ -1002,10 +1009,11 @@ test "execute a command" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
-    try commands.execute(&arguments);
+    try commands.execute(&arguments, &diagnostics);
 
     try std.testing.expectEqual(7, add_command_result);
 }
@@ -1026,10 +1034,11 @@ test "execute a command with a subcommand by adding the parent command" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(kubectl_command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(kubectl_command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
-    try commands.execute(&arguments);
+    try commands.execute(&arguments, &diagnostics);
 
     try std.testing.expectEqualStrings("pods", get_command_result);
 }
@@ -1047,8 +1056,9 @@ test "attempt to execute a command with mismatch in argument specification" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(command);
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "6", "3" });
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, commands.execute(&arguments));
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, commands.execute(&arguments, &diagnostics));
 }
