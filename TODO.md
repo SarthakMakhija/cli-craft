@@ -13,7 +13,6 @@
 - [X] Hierarchical deinit in Commands
 - [ ] Support other properties in command like usage
 - [ ] Support help command
-- [ ] Refer other properties from cobra
 - [X] Add support for logging/printing
 - [ ] Add errors on console 
     - [X] Pass a single ErrorLog
@@ -23,9 +22,9 @@
 - [X] Add support for passing flags with default value
 - [X] Add support for persistent flags
 - [X] Add support for executing commands with persistent flags
-- [ ] Revalidate the design of FlagType and FlagValue
+- [X] Revalidate the design of FlagType and FlagValue
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
-- [ ] Revalidate the arguments of run function in a command
+- [X] Revalidate the arguments of run function in a command
 - [ ] Revisit export of public APIs
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [X] An entrypoint of the cli-craft library
