@@ -57,7 +57,7 @@ pub const CommandLineParser = struct {
                     }
                 }
                 const flag_name = Flag.normalizeFlagName(argument);
-                last_flag = self.command_flags.?.get(flag_name) orelse return CommandParsingError.FlagNotFound;
+                last_flag = self.command_flags.?.get(flag_name) orelse return self.diagnostics.reportAndFail(.{ .FlagNotFound = .{ .flag_name = flag_name } });
             } else if (last_flag) |flag| {
                 if (flag.flag_type == FlagType.boolean) {
                     if (Flag.looksLikeBooleanFlagValue(argument)) {
