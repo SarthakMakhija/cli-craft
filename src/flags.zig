@@ -641,10 +641,10 @@ test "merge flags with conflicting short names" {
 
     try std.testing.expectError(FlagAddError.FlagShortNameMergeConflict, flags.merge(&other_flags, &diagnostics));
 
-    const diagnostic_type = diagnostics.diagnostics_type.?.FlagShortNameMergeConflict;
-    try std.testing.expectEqual('n', diagnostic_type.short_name);
-    try std.testing.expectEqualStrings("new", diagnostic_type.flag_name);
-    try std.testing.expectEqualStrings("namespace", diagnostic_type.conflicting_flag_name);
+    const diagnostics_type = diagnostics.diagnostics_type.?.FlagShortNameMergeConflict;
+    try std.testing.expectEqual('n', diagnostics_type.short_name);
+    try std.testing.expectEqualStrings("new", diagnostics_type.flag_name);
+    try std.testing.expectEqualStrings("namespace", diagnostics_type.conflicting_flag_name);
 }
 
 test "build a parsed flag with name and value" {
