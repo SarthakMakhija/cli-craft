@@ -818,6 +818,9 @@ test "attempt to add a command which has a parent" {
 
     var diagnostics: Diagnostics = .{};
     try std.testing.expectError(CommandAddError.ChildCommandAdded, commands.add_disallow_child(get_command, &diagnostics));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.ChildCommandAdded;
+    try std.testing.expectEqualStrings("get", diagnostics_type.command);
 }
 
 test "add a command which has a child" {
@@ -924,6 +927,9 @@ test "attempt to add a command with an existing name" {
 
     const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_child(another_command, &diagnostics));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.CommandNameAlreadyExists;
+    try std.testing.expectEqualStrings("stringer", diagnostics_type.command);
 }
 
 test "attempt to add a command with an existing alias" {
@@ -947,6 +953,10 @@ test "attempt to add a command with an existing alias" {
     defer another_command.deinit();
 
     try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_child(another_command, &diagnostics));
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.CommandAliasAlreadyExists;
+    try std.testing.expectEqualStrings("str", diagnostics_type.alias);
+    try std.testing.expectEqualStrings("stringer", diagnostics_type.existing_command);
 }
 
 test "get suggestions for a command (1)" {
