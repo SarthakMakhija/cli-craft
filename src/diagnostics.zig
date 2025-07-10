@@ -1,8 +1,7 @@
 const std = @import("std");
 const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
-const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
-const CommandAddError = @import("commands.zig").CommandAddError;
+const CommandErrors = @import("commands.zig").CommandErrors;
 
 const ErrorLog = @import("log.zig").ErrorLog;
 
@@ -72,15 +71,15 @@ pub const Diagnostics = struct {
             .InvalidInteger => FlagErrors.InvalidInteger,
             .FlagNotFound => FlagErrors.FlagNotFound,
             .FlagTypeMismatch => FlagErrors.FlagTypeMismatch,
-            .NoFlagsAddedToCommand => CommandParsingError.NoFlagsAddedToCommand,
-            .NoFlagValueProvided => CommandParsingError.NoFlagValueProvided,
-            .NoSubcommandProvided => CommandParsingError.NoSubcommandProvided,
-            .SubcommandNotAddedToParentCommand => CommandParsingError.SubcommandNotAddedToParentCommand,
-            .SubCommandNameSameAsParent => CommandAddError.SubCommandNameSameAsParent,
-            .SubCommandAddedToExecutable => CommandAddError.SubCommandAddedToExecutable,
-            .ChildCommandAdded => CommandAddError.ChildCommandAdded,
-            .CommandNameAlreadyExists => CommandAddError.CommandNameAlreadyExists,
-            .CommandAliasAlreadyExists => CommandAddError.CommandAliasAlreadyExists,
+            .NoFlagsAddedToCommand => CommandErrors.NoFlagsAddedToCommand,
+            .NoFlagValueProvided => CommandErrors.NoFlagValueProvided,
+            .NoSubcommandProvided => CommandErrors.NoSubcommandProvided,
+            .SubcommandNotAddedToParentCommand => CommandErrors.SubcommandNotAddedToParentCommand,
+            .SubCommandNameSameAsParent => CommandErrors.SubCommandNameSameAsParent,
+            .SubCommandAddedToExecutable => CommandErrors.SubCommandAddedToExecutable,
+            .ChildCommandAdded => CommandErrors.ChildCommandAdded,
+            .CommandNameAlreadyExists => CommandErrors.CommandNameAlreadyExists,
+            .CommandAliasAlreadyExists => CommandErrors.CommandAliasAlreadyExists,
         };
     }
 };

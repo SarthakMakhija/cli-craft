@@ -79,7 +79,7 @@ pub const CliCraft = struct {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
 
-        try self.commands.execute(&command_line_arguments, &diagnostics) catch |err| {
+        self.commands.execute(&command_line_arguments, &diagnostics) catch |err| {
             diagnostics.log_using(self.error_log);
             return err;
         };

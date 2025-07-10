@@ -29,6 +29,8 @@ pub const CommandExecutionError = error{
     CommandNotAdded,
 };
 
+pub const CommandErrors = CommandAddError || CommandExecutionError || CommandParsingError;
+
 pub const CommandSuggestion = struct {
     name: []const u8,
     distance: u16,
