@@ -60,20 +60,29 @@ pub const CliCraft = struct {
     pub fn addCommand(self: *CliCraft, command: Command) !void {
         var diagnostics: Diagnostics = .{};
 
-        try self.commands.add_disallow_child(command, &diagnostics);
+        self.commands.add_disallow_child(command, &diagnostics) catch |err| {
+            diagnostics.log_using(self.error_log);
+            return err;
+        };
     }
 
     pub fn execute(self: *CliCraft) !void {
         var diagnostics: Diagnostics = .{};
 
-        try self.commands.execute(Arguments.init(), &diagnostics);
+        self.commands.execute(Arguments.init(), &diagnostics) catch |err| {
+            diagnostics.log_using(self.error_log);
+            return err;
+        };
     }
 
     pub fn executeWithArguments(self: *CliCraft, arguments: []const []const u8) !void {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
 
-        try self.commands.execute(&command_line_arguments, &diagnostics);
+        try self.commands.execute(&command_line_arguments, &diagnostics) catch |err| {
+            diagnostics.log_using(self.error_log);
+            return err;
+        };
     }
 
     pub fn deinit(self: *CliCraft) void {
