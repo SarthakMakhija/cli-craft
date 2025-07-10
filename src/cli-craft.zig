@@ -42,11 +42,11 @@ pub const CliCraft = struct {
     }
 
     pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) Command {
-        return Command.init(name, description, executable, self.options.allocator);
+        return Command.init(name, description, executable, self.error_log, self.options.allocator);
     }
 
     pub fn newParentCommand(self: CliCraft, name: []const u8, description: []const u8) !Command {
-        return try Command.initParent(name, description, self.options.allocator);
+        return try Command.initParent(name, description, self.error_log, self.options.allocator);
     }
 
     pub fn addExecutableCommand(self: *CliCraft, name: []const u8, description: []const u8, executable: CommandFn) !void {

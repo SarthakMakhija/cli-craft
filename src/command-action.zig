@@ -62,7 +62,7 @@ test "add a sub-command" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
 
     var command_action = try CommandAction.initSubcommands(std.testing.allocator, ErrorLog.initNoOperation());
     defer command_action.deinit();
@@ -82,7 +82,7 @@ test "attempt to add a sub-command to an executable command" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     var command_action = CommandAction.initExecutable(runnable);
     defer command_action.deinit();
 

@@ -56,18 +56,17 @@ pub const Command = struct {
     persistent_flags: ?Flags = null,
     error_log: ErrorLog,
 
-    pub fn init(name: []const u8, description: []const u8, executable: CommandFn, allocator: std.mem.Allocator) Command {
+    pub fn init(name: []const u8, description: []const u8, executable: CommandFn, error_log: ErrorLog, allocator: std.mem.Allocator) Command {
         return .{
             .name = name,
             .description = description,
             .allocator = allocator,
             .action = CommandAction.initExecutable(executable),
-            .error_log = ErrorLog.init(std.io.getStdErr().writer()),
+            .error_log = error_log,
         };
     }
 
-    pub fn initParent(name: []const u8, description: []const u8, allocator: std.mem.Allocator) !Command {
-        const error_log = ErrorLog.init(std.io.getStdErr().writer());
+    pub fn initParent(name: []const u8, description: []const u8, error_log: ErrorLog, allocator: std.mem.Allocator) !Command {
         return .{
             .name = name,
             .description = description,
@@ -324,7 +323,7 @@ test "initialize a command with an executable action" {
         }
     }.run;
 
-    var command = Command.init("test", "test command", runnable, std.testing.allocator);
+    var command = Command.init("test", "test command", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     defer command.deinit();
 
     try std.testing.expectEqualStrings("test", command.name);
@@ -338,7 +337,7 @@ test "initialize a command with an executable action and mark it as deprecated" 
         }
     }.run;
 
-    var command = Command.init("test", "test command", runnable, std.testing.allocator);
+    var command = Command.init("test", "test command", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.markDeprecated("This command is deprecated");
     defer command.deinit();
 
@@ -354,7 +353,7 @@ test "initialize a command with a local flag" {
 
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build();
 
-    var command = Command.init("test", "test command", runnable, std.testing.allocator);
+    var command = Command.init("test", "test command", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(verbose_flag);
 
     defer command.deinit();
@@ -370,7 +369,7 @@ test "initialize a command without any flags" {
         }
     }.run;
 
-    var command = Command.init("test", "test command", runnable, std.testing.allocator);
+    var command = Command.init("test", "test command", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     defer command.deinit();
 
     try std.testing.expect(command.local_flags == null);
@@ -383,7 +382,7 @@ test "initialize an executable command with an alias" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
     defer command.deinit();
@@ -403,7 +402,7 @@ test "initialize an executable command with a couple of aliases" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
@@ -424,10 +423,10 @@ test "initialize a parent command with subcommands" {
         }
     }.run;
 
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
@@ -441,7 +440,7 @@ test "initialize an executable command with argument specification (1)" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeMinimum(1));
 
     defer command.deinit();
@@ -457,7 +456,7 @@ test "initialize an executable command with argument specification (2)" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
 
     defer command.deinit();
@@ -481,7 +480,7 @@ test "execute a command with an executable command" {
         }
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
@@ -501,10 +500,10 @@ test "execute a command with a subcommand" {
         }
     }.run;
 
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     defer get_command.deinit();
 
     try kubectl_command.addSubcommand(&get_command);
@@ -525,10 +524,10 @@ test "attempt to execute a command with a subcommand but with incorrect subcomma
         }
     }.run;
 
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     defer get_command.deinit();
 
     try kubectl_command.addSubcommand(&get_command);
@@ -545,7 +544,7 @@ test "add a local flag" {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
     defer command.deinit();
 
@@ -557,7 +556,7 @@ test "attempt to add an existing local flag" {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
     defer command.deinit();
 
@@ -569,7 +568,7 @@ test "add a persistent flag" {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build());
     defer command.deinit();
 
@@ -581,7 +580,7 @@ test "attempt to add an existing persistent flag" {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build());
 
     defer command.deinit();
@@ -604,7 +603,7 @@ test "execute a command passing flags and arguments" {
         }
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
     try command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
@@ -631,10 +630,10 @@ test "execute a command with child command passing flags and arguments 1" {
         }
     }.run;
 
-    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "Get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
 
-    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
@@ -660,10 +659,10 @@ test "execute a command with child command passing flags and arguments 2" {
         }
     }.run;
 
-    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "Get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
 
-    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
@@ -690,10 +689,10 @@ test "execute a command with child command passing flags and arguments with a pe
         }
     }.run;
 
-    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "Get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
 
-    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
@@ -721,10 +720,10 @@ test "execute a command with child command passing flags and arguments with a lo
         }
     }.run;
 
-    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "Get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
 
-    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
@@ -753,10 +752,10 @@ test "execute a command with child command passing flags and arguments with a lo
         }
     }.run;
 
-    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "Get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
 
-    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
@@ -786,10 +785,10 @@ test "execute a command with child command passing flags and arguments with a lo
         }
     }.run;
 
-    var get_command = Command.init("get", "Get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "Get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try get_command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
 
-    var kubectl_command = try Command.initParent("kubectl", "Entry point", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
@@ -814,10 +813,10 @@ test "attempt to add a command which has a parent" {
         }
     }.run;
 
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", ErrorLog.initNoOperation(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
@@ -833,9 +832,9 @@ test "add a command which has a child" {
         }
     }.run;
 
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", ErrorLog.initNoOperation(), std.testing.allocator);
 
-    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
@@ -855,7 +854,7 @@ test "add a command with a name" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
@@ -874,7 +873,7 @@ test "add a command with a name and an alias" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
@@ -894,7 +893,7 @@ test "add a command with a name and a couple of aliases" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
@@ -915,10 +914,10 @@ test "attempt to add a command with an existing name" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    const command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try commands.add_disallow_child(command);
 
-    const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, std.testing.allocator);
+    const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_child(another_command));
 }
 
@@ -932,12 +931,12 @@ test "attempt to add a command with an existing alias" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    var command = Command.init("stringer", "manipulate strings", runnable, std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{"str"});
 
     try commands.add_disallow_child(command);
 
-    var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, std.testing.allocator);
+    var another_command = Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     another_command.addAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
@@ -954,9 +953,9 @@ test "get suggestions for a command (1)" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
-    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, std.testing.allocator));
-    try commands.add_disallow_child(Command.init("strm", "short for stringer", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
+    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
+    try commands.add_disallow_child(Command.init("strm", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
 
     var suggestions = try commands.suggestions_for("strn");
     defer suggestions.deinit();
@@ -976,9 +975,9 @@ test "get suggestions for a command (2)" {
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
 
-    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, std.testing.allocator));
-    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, std.testing.allocator));
-    try commands.add_disallow_child(Command.init("zig", "language", runnable, std.testing.allocator));
+    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
+    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
+    try commands.add_disallow_child(Command.init("zig", "language", runnable, ErrorLog.initNoOperation(), std.testing.allocator));
 
     var suggestions = try commands.suggestions_for("string");
     defer suggestions.deinit();
@@ -999,7 +998,7 @@ test "execute a command" {
         }
     }.run;
 
-    const command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    const command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
     defer commands.deinit();
@@ -1020,9 +1019,9 @@ test "execute a command with a subcommand by adding the parent command" {
         }
     }.run;
 
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entrypoint", ErrorLog.initNoOperation(), std.testing.allocator);
 
-    var get_command = Command.init("get", "get objects", runnable, std.testing.allocator);
+    var get_command = Command.init("get", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try kubectl_command.addSubcommand(&get_command);
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
@@ -1043,7 +1042,7 @@ test "attempt to execute a command with mismatch in argument specification" {
         }
     }.run;
 
-    var command = Command.init("add", "add numbers", runnable, std.testing.allocator);
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
 
     var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
