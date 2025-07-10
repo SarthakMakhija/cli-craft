@@ -2,6 +2,7 @@ const std = @import("std");
 const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
 const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
+const CommandAddError = @import("commands.zig").CommandAddError;
 
 const ErrorLog = @import("log.zig").ErrorLog;
 
@@ -43,6 +44,12 @@ pub const Diagnostics = struct {
             .SubcommandNotAddedToParentCommand => |context| {
                 error_log.log("Error: Subcommand '{s}' not added to the parent command '{s}'.\n", .{ context.subcommand, context.command });
             },
+            .SubCommandNameSameAsParent => |context| {
+                error_log.log("Error: Subcommand name '{s}' is same as the parent command name.\n", .{context.command});
+            },
+            .SubCommandAddedToExecutable => |context| {
+                error_log.log("Error: Subcommand '{s}' added to an executable command '{s}'.\n", .{ context.command, context.subcommand });
+            },
         };
     }
 
@@ -60,6 +67,8 @@ pub const Diagnostics = struct {
             .NoFlagValueProvided => CommandParsingError.NoFlagValueProvided,
             .NoSubcommandProvided => CommandParsingError.NoSubcommandProvided,
             .SubcommandNotAddedToParentCommand => CommandParsingError.SubcommandNotAddedToParentCommand,
+            .SubCommandNameSameAsParent => CommandAddError.SubCommandNameSameAsParent,
+            .SubCommandAddedToExecutable => CommandAddError.SubCommandAddedToExecutable,
         };
     }
 };
@@ -103,6 +112,13 @@ pub const DiagnosticType = union(enum) {
         command: []const u8,
     },
     SubcommandNotAddedToParentCommand: struct {
+        command: []const u8,
+        subcommand: []const u8,
+    },
+    SubCommandNameSameAsParent: struct {
+        command: []const u8,
+    },
+    SubCommandAddedToExecutable: struct {
         command: []const u8,
         subcommand: []const u8,
     },

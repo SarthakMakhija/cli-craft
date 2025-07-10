@@ -7,6 +7,8 @@ const CommandAddError = @import("commands.zig").CommandAddError;
 const CommandFn = @import("commands.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
+const Diagnostics = @import("diagnostics.zig").Diagnostics;
+
 const ErrorLog = @import("log.zig").ErrorLog;
 
 pub const CommandAction = union(enum) {
@@ -21,14 +23,17 @@ pub const CommandAction = union(enum) {
         return .{ .subcommands = Commands.init(allocator, error_log) };
     }
 
-    pub fn addSubcommand(self: *CommandAction, subcommand: Command, error_log: ErrorLog) !void {
+    pub fn addSubcommand(self: *CommandAction, parent_command_name: []const u8, subcommand: *Command, diagnostics: *Diagnostics) !void {
+        if (std.mem.eql(u8, subcommand.name, parent_command_name)) {
+            return diagnostics.reportAndFail(.{ .SubCommandNameSameAsParent = .{ .command = subcommand.name } });
+        }
         switch (self.*) {
             .executable => {
-                error_log.log("Error: Subcommand '{s}' added to an excutable command.\n", .{subcommand.name});
-                return CommandAddError.SubCommandAddedToExecutable;
+                return diagnostics.reportAndFail(.{ .SubCommandAddedToExecutable = .{ .command = parent_command_name, .subcommand = subcommand.name } });
             },
             .subcommands => {
-                try self.subcommands.add_allow_child(subcommand);
+                subcommand.has_parent = true;
+                try self.subcommands.add_allow_child(subcommand.*);
             },
         }
     }
@@ -61,12 +66,13 @@ test "add a sub-command" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
 
     var command_action = try CommandAction.initSubcommands(std.testing.allocator, ErrorLog.initNoOperation());
     defer command_action.deinit();
 
-    try command_action.addSubcommand(command, command.error_log);
+    var diagnostics: Diagnostics = .{};
+    try command_action.addSubcommand("strings", &command, &diagnostics);
 
     const retrieved = command_action.subcommands.get("stringer");
 
@@ -81,9 +87,36 @@ test "attempt to add a sub-command to an executable command" {
         }
     }.run;
 
-    const command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    defer command.deinit();
+
     var command_action = CommandAction.initExecutable(runnable);
     defer command_action.deinit();
 
-    try std.testing.expectError(CommandAddError.SubCommandAddedToExecutable, command_action.addSubcommand(command, command.error_log));
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(CommandAddError.SubCommandAddedToExecutable, command_action.addSubcommand("strings", &command, &diagnostics));
+
+    const diagnostic_type = diagnostics.diagnostics_type.?.SubCommandAddedToExecutable;
+    try std.testing.expectEqualStrings("strings", diagnostic_type.command);
+    try std.testing.expectEqualStrings("stringer", diagnostic_type.subcommand);
+}
+
+test "attempt to initialize a parent command with a subcommand having the same name as parent command name" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command_action = try CommandAction.initSubcommands(std.testing.allocator, ErrorLog.initNoOperation());
+    defer command_action.deinit();
+
+    var get_command = Command.init("kubectl", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    defer get_command.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(CommandAddError.SubCommandNameSameAsParent, command_action.addSubcommand("kubectl", &get_command, &diagnostics));
+
+    const diagnostic_type = diagnostics.diagnostics_type.?.SubCommandNameSameAsParent;
+    try std.testing.expectEqualStrings("kubectl", diagnostic_type.command);
 }
