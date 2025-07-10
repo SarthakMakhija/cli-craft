@@ -16,6 +16,8 @@
 - [ ] Refer other properties from cobra
 - [ ] Add support for logging/printing
 - [ ] Add errors on console 
+    - [ ] Pass a single ErrorLog
+    - [ ] Revisit diagnostics across all the methods
 - [X] Add support for local flags
 - [X] Add support for executing commands with local flags
 - [X] Add support for passing flags with default value
@@ -25,7 +27,7 @@
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
 - [ ] Revalidate the arguments of run function in a command
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
-- [ ] An entrypoint of the cli-craft library
+- [X] An entrypoint of the cli-craft library
 - [ ] An examples folder
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
 - [ ] README
