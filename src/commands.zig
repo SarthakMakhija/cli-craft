@@ -237,6 +237,17 @@ pub const Commands = struct {
         return self.commands.get(name);
     }
 
+    pub fn execute(self: Commands, arguments: *Arguments) !void {
+        const command_name = arguments.next() orelse return CommandExecutionError.MissingCommandNameToExecute;
+        const command = self.get(command_name) orelse return CommandExecutionError.CommandNotAdded;
+
+        var diagnostics: Diagnostics = .{};
+        return command.execute(arguments, &diagnostics, self.allocator) catch |err| {
+            diagnostics.log_using(self.error_log);
+            return err;
+        };
+    }
+
     pub fn deinit(self: *Commands) void {
         var iterator = self.commands.valueIterator();
         while (iterator.next()) |command| {
@@ -262,17 +273,6 @@ pub const Commands = struct {
                 try self.commands.put(alias, command);
             }
         }
-    }
-
-    fn execute(self: Commands, arguments: *Arguments) !void {
-        const command_name = arguments.next() orelse return CommandExecutionError.MissingCommandNameToExecute;
-        const command = self.get(command_name) orelse return CommandExecutionError.CommandNotAdded;
-
-        var diagnostics: Diagnostics = .{};
-        return command.execute(arguments, &diagnostics, self.allocator) catch |err| {
-            diagnostics.log_using(self.error_log);
-            return err;
-        };
     }
 
     fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList(CommandSuggestion) {
