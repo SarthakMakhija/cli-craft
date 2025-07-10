@@ -22,11 +22,7 @@ const Sort = std.sort;
 
 const BestDistance = 3;
 
-pub const CommandAddError = error{
-    CommandHasAParent,
-    CommandNameAlreadyExists,
-    CommandAliasAlreadyExists,
-};
+pub const CommandAddError = error{ CommandHasAParent, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
 
 pub const CommandExecutionError = error{
     MissingCommandNameToExecute,
@@ -82,6 +78,10 @@ pub const Command = struct {
 
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         subcommand.has_parent = true;
+        if (std.mem.eql(u8, subcommand.name, self.name)) {
+            self.error_log.log("Error: Subcommand name '{s}' is same as the parent command name.\n", .{subcommand.name});
+            return CommandAddError.SubCommandNameSameAsParent;
+        }
         try self.action.addSubcommand(subcommand.*, self.error_log);
     }
 
@@ -123,16 +123,6 @@ pub const Command = struct {
         defer parsed_flags.deinit();
 
         return try self.executeInternal(arguments, &flags, &parsed_flags, diagnostics, allocator);
-    }
-
-    fn deinit(self: *Command) void {
-        self.action.deinit();
-        if (self.local_flags) |*flags| {
-            flags.deinit();
-        }
-        if (self.persistent_flags) |*flags| {
-            flags.deinit();
-        }
     }
 
     fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, inherited_parsed_flags: *ParsedFlags, diagnostics: *Diagnostics, allocator: std.mem.Allocator) !void {
@@ -207,6 +197,16 @@ pub const Command = struct {
                 .subcommand = subcommand_name,
             } });
         return sub_command;
+    }
+
+    fn deinit(self: *Command) void {
+        self.action.deinit();
+        if (self.local_flags) |*flags| {
+            flags.deinit();
+        }
+        if (self.persistent_flags) |*flags| {
+            flags.deinit();
+        }
     }
 };
 
@@ -431,6 +431,20 @@ test "initialize a parent command with subcommands" {
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
     try std.testing.expectEqualStrings("get", kubectl_command.action.subcommands.get("get").?.name);
+}
+
+test "attempt to initialize a parent command with a subcommand having the same name as parent command name" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", ErrorLog.initNoOperation(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = Command.init("kubectl", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    try std.testing.expectError(CommandAddError.SubCommandNameSameAsParent, kubectl_command.addSubcommand(&get_command));
 }
 
 test "initialize an executable command with argument specification (1)" {

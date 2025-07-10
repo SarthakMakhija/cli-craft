@@ -3,10 +3,9 @@ const std = @import("std");
 const Command = @import("commands.zig").Command;
 const CommandFnArguments = @import("commands.zig").CommandFnArguments;
 const Commands = @import("commands.zig").Commands;
+const CommandAddError = @import("commands.zig").CommandAddError;
 const CommandFn = @import("commands.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
-
-pub const CommandAddError = error{CannotAddSubCommandToExecutable};
 
 const ErrorLog = @import("log.zig").ErrorLog;
 
@@ -26,7 +25,7 @@ pub const CommandAction = union(enum) {
         switch (self.*) {
             .executable => {
                 error_log.log("Error: Subcommand '{s}' added to an excutable command.\n", .{subcommand.name});
-                return CommandAddError.CannotAddSubCommandToExecutable;
+                return CommandAddError.SubCommandAddedToExecutable;
             },
             .subcommands => {
                 try self.subcommands.add_allow_child(subcommand);
@@ -86,5 +85,5 @@ test "attempt to add a sub-command to an executable command" {
     var command_action = CommandAction.initExecutable(runnable);
     defer command_action.deinit();
 
-    try std.testing.expectError(CommandAddError.CannotAddSubCommandToExecutable, command_action.addSubcommand(command, command.error_log));
+    try std.testing.expectError(CommandAddError.SubCommandAddedToExecutable, command_action.addSubcommand(command, command.error_log));
 }

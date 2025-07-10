@@ -7,16 +7,16 @@
 - [X] Add support for executing a leaf command
 - [X] Add support for identifying parent command
 - [X] Add support for providing suggestions for a misspelled command
-- [ ] Multi-OS pipeline
+- [X] Multi-OS pipeline
     - [X] Ubuntu-latest (x86_64)
     - [X] Windows-latest (x86_64)
 - [X] Hierarchical deinit in Commands
 - [ ] Support other properties in command like usage
 - [ ] Support help command
 - [ ] Refer other properties from cobra
-- [ ] Add support for logging/printing
+- [X] Add support for logging/printing
 - [ ] Add errors on console 
-    - [ ] Pass a single ErrorLog
+    - [X] Pass a single ErrorLog
     - [ ] Revisit diagnostics across all the methods
 - [X] Add support for local flags
 - [X] Add support for executing commands with local flags
@@ -26,6 +26,7 @@
 - [ ] Revalidate the design of FlagType and FlagValue
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
 - [ ] Revalidate the arguments of run function in a command
+- [ ] Revisit export of public APIs
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [X] An entrypoint of the cli-craft library
 - [ ] An examples folder
