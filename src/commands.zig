@@ -26,7 +26,7 @@ pub const CommandAddError = error{ ChildCommandAdded, CommandNameAlreadyExists, 
 
 pub const CommandExecutionError = error{
     MissingCommandNameToExecute,
-    CommandNotAdded,
+    CommandNotFound,
 };
 
 pub const CommandErrors = CommandAddError || CommandExecutionError || CommandParsingError;
@@ -240,8 +240,8 @@ pub const Commands = struct {
     }
 
     pub fn execute(self: Commands, arguments: *Arguments, diagnostics: *Diagnostics) !void {
-        const command_name = arguments.next() orelse return CommandExecutionError.MissingCommandNameToExecute;
-        const command = self.get(command_name) orelse return CommandExecutionError.CommandNotAdded;
+        const command_name = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
+        const command = self.get(command_name) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name } });
 
         return command.execute(arguments, diagnostics, self.allocator);
     }

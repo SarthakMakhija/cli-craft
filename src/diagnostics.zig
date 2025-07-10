@@ -58,6 +58,12 @@ pub const Diagnostics = struct {
             .CommandAliasAlreadyExists => |context| {
                 error_log.log("Error: Command alias '{s}' already exists for the command '{s}'.\n", .{ context.alias, context.existing_command });
             },
+            .MissingCommandNameToExecute => |_| {
+                error_log.log("Error: No command was provided to execute.\n", .{});
+            },
+            .CommandNotFound => |context| {
+                error_log.log("Error: Command '{s}' not found.\n", .{context.command});
+            },
         };
     }
 
@@ -80,6 +86,8 @@ pub const Diagnostics = struct {
             .ChildCommandAdded => CommandErrors.ChildCommandAdded,
             .CommandNameAlreadyExists => CommandErrors.CommandNameAlreadyExists,
             .CommandAliasAlreadyExists => CommandErrors.CommandAliasAlreadyExists,
+            .MissingCommandNameToExecute => CommandErrors.MissingCommandNameToExecute,
+            .CommandNotFound => CommandErrors.CommandNotFound,
         };
     }
 };
@@ -142,5 +150,9 @@ pub const DiagnosticType = union(enum) {
     CommandAliasAlreadyExists: struct {
         alias: []const u8,
         existing_command: []const u8,
+    },
+    MissingCommandNameToExecute: struct {},
+    CommandNotFound: struct {
+        command: []const u8,
     },
 };
