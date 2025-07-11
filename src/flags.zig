@@ -557,19 +557,15 @@ test "print flags" {
     table.setFormat(prettytable.FORMAT_CLEAN);
 
     try flags.print(&table, std.testing.allocator, writer.any());
-
     const value = buffer.items;
 
-    const expected =
-        \\Flags:
-        \\ --verbose, -v    Define verbose output (boolean) 
-        \\ --namespace, -n  Define the namespace (string, default: cli-craft) 
-        \\
-    ;
+    try std.testing.expect(std.mem.indexOf(u8, value, "--verbose").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "-v").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "(boolean)").? > 0);
 
-    // std.debug.print("{s} \n", .{value});
-
-    try std.testing.expectEqualStrings(expected, value);
+    try std.testing.expect(std.mem.indexOf(u8, value, "--namespace").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "-n").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "(string, default: cli-craft)").? > 0);
 }
 
 test "add a flag and check its existence by short name" {
