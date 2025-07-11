@@ -263,6 +263,30 @@ pub const Commands = struct {
         self.command_by_name.deinit();
     }
 
+    pub fn print(self: Commands, writer: std.io.AnyWriter) !void {
+        try writer.print("Available Commands:\n", .{});
+        var iterator = self.command_by_name.iterator();
+
+        while (iterator.next()) |entry| {
+            const command_name = entry.key_ptr.*;
+            const command = entry.value_ptr;
+
+            try writer.print("  {s}", .{command_name});
+
+            if (command.aliases) |aliases| {
+                if (aliases.len > 0) {
+                    try writer.writeAll(" (aliases:");
+                    for (aliases) |alias| {
+                        try writer.print(" {s}", .{alias});
+                    }
+                    try writer.writeAll(")");
+                }
+            }
+            try writer.print("    {s}\n", .{command.description});
+        }
+        try writer.writeAll("\n");
+    }
+
     fn add(self: *Commands, command: Command, allow_child: bool, diagnostics: *Diagnostics) !void {
         if (!allow_child and command.has_parent) {
             return diagnostics.reportAndFail(.{ .ChildCommandAdded = .{ .command = command.name } });
@@ -917,6 +941,40 @@ test "add a command with a name and a couple of aliases" {
 
     try std.testing.expectEqualStrings("stringer", commands.get("str").?.name);
     try std.testing.expectEqualStrings("stringer", commands.get("strm").?.name);
+}
+
+test "print commands" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+
+    var add_command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    add_command.addAliases(&[_]CommandAlias{"sum"});
+
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
+    defer commands.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(command, &diagnostics);
+    try commands.add_disallow_child(add_command, &diagnostics);
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+
+    try commands.print(writer.any());
+
+    const value = buffer.items;
+
+    try std.testing.expect(std.mem.indexOf(u8, value, "stringer").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "str").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "strm").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "sum").? > 0);
 }
 
 test "attempt to add a command with an existing name" {
