@@ -1,4 +1,6 @@
 const std = @import("std");
+const prettytable = @import("prettytable");
+
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 const DiagnosticType = @import("diagnostics.zig").DiagnosticType;
 
@@ -89,22 +91,45 @@ pub const Flags = struct {
         }
     }
 
-    pub fn print(self: *Flags, writer: std.io.AnyWriter) !void {
-        try writer.print("Flags:\n", .{});
+    pub fn print(self: *Flags, table: *prettytable.Table, allocator: std.mem.Allocator, writer: std.io.AnyWriter) !void {
+        var column_values = std.ArrayList([]const u8).init(allocator);
+        defer {
+            for (column_values.items) |column_value| {
+                allocator.free(column_value);
+            }
+            column_values.deinit();
+        }
+
+        try writer.writeAll("Flags:\n");
         var iterator = self.flag_by_name.iterator();
+
         while (iterator.next()) |entry| {
             const flag = entry.value_ptr;
+            var flag_name: []const u8 = undefined;
 
-            try writer.print("  --{s}", .{flag.name});
-            if (flag.short_name) |short_name| {
-                try writer.print(", -{c}", .{short_name});
+            if (flag.short_name) |short| {
+                flag_name = try std.fmt.allocPrint(allocator, "--{s}, -{c}", .{ flag.name, short });
+            } else {
+                flag_name = try std.fmt.allocPrint(allocator, "--{s}", .{flag.name});
             }
-            try writer.print("   {s} ({s}", .{ flag.description, @tagName(flag.flag_type) });
+
+            var description: []const u8 = undefined;
             if (flag.default_value) |default_value| {
-                try default_value.write_value(writer);
+                description = switch (default_value) {
+                    .boolean => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {any})", .{ flag.description, @tagName(flag.flag_type), default_value.boolean }),
+                    .int64 => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {d})", .{ flag.description, @tagName(flag.flag_type), default_value.int64 }),
+                    .string => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {s})", .{ flag.description, @tagName(flag.flag_type), default_value.string }),
+                };
+            } else {
+                description = try std.fmt.allocPrint(allocator, "{s} ({s})", .{ flag.description, @tagName(flag.flag_type) });
             }
-            try writer.writeAll(")\n");
+
+            try column_values.append(flag_name);
+            try column_values.append(description);
+
+            try table.addRow(&[_][]const u8{ flag_name, description });
         }
+        return try table.print(writer);
     }
 
     pub fn deinit(self: *Flags) void {
@@ -142,14 +167,6 @@ pub const FlagValue = union(FlagType) {
             .int64 => FlagType.int64,
             .string => FlagType.string,
         };
-    }
-
-    fn write_value(self: FlagValue, writer: std.io.AnyWriter) !void {
-        switch (self) {
-            .boolean => try writer.print(", default: {any}", .{self.boolean}),
-            .int64 => try writer.print(", default: {any}", .{self.int64}),
-            .string => try writer.print(", default: {s}", .{self.string}),
-        }
     }
 };
 
@@ -534,14 +551,25 @@ test "print flags" {
     defer buffer.deinit();
     var writer = buffer.writer();
 
-    try flags.print(writer.any());
+    var table = prettytable.Table.init(std.testing.allocator);
+    defer table.deinit();
+
+    table.setFormat(prettytable.FORMAT_CLEAN);
+
+    try flags.print(&table, std.testing.allocator, writer.any());
 
     const value = buffer.items;
 
-    try std.testing.expect(std.mem.indexOf(u8, value, "namespace").? > 0);
-    try std.testing.expect(std.mem.indexOf(u8, value, "cli-craft").? > 0);
-    try std.testing.expect(std.mem.indexOf(u8, value, "verbose").? > 0);
-    try std.testing.expect(std.mem.indexOf(u8, value, "Define verbose output").? > 0);
+    const expected =
+        \\Flags:
+        \\ --verbose, -v    Define verbose output (boolean) 
+        \\ --namespace, -n  Define the namespace (string, default: cli-craft) 
+        \\
+    ;
+
+    // std.debug.print("{s} \n", .{value});
+
+    try std.testing.expectEqualStrings(expected, value);
 }
 
 test "add a flag and check its existence by short name" {

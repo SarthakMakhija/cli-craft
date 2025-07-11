@@ -28,6 +28,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // Load the prettytable dependency
+    const pretty_dep = b.dependency("prettytable", .{});
+    const pretty_mod = pretty_dep.module("prettytable");
+
     // Now, we will create a static library based on the module we created above.
     // This creates a `std.Build.Step.Compile`, which is the build step responsible
     // for actually invoking the compiler.
@@ -37,6 +41,9 @@ pub fn build(b: *std.Build) void {
         .root_module = lib_mod,
     });
 
+    // Add the prettytable module as an import
+    lib_mod.addImport("prettytable", pretty_mod);
+
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
@@ -45,8 +52,11 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const lib_unit_tests = b.addTest(.{
-        .root_module = lib_mod,
+        .root_source_file = b.path("src/cli-craft.zig"),
     });
+
+    // make prettytable visible inside the test root module
+    lib_unit_tests.root_module.addImport("prettytable", pretty_mod);
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
