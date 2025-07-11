@@ -89,6 +89,24 @@ pub const Flags = struct {
         }
     }
 
+    pub fn print(self: *Flags, writer: std.io.AnyWriter) !void {
+        try writer.print("Flags:\n", .{});
+        var iterator = self.flag_by_name.iterator();
+        while (iterator.next()) |entry| {
+            const flag = entry.value_ptr;
+
+            try writer.print("  --{s}", .{flag.name});
+            if (flag.short_name) |short_name| {
+                try writer.print(", -{c}", .{short_name});
+            }
+            try writer.print("   {s} ({s}", .{ flag.description, @tagName(flag.flag_type) });
+            if (flag.default_value) |default_value| {
+                try default_value.write_value(writer);
+            }
+            try writer.writeAll(")\n");
+        }
+    }
+
     pub fn deinit(self: *Flags) void {
         self.flag_by_name.deinit();
         self.short_name_to_long_name.deinit();
@@ -124,6 +142,14 @@ pub const FlagValue = union(FlagType) {
             .int64 => FlagType.int64,
             .string => FlagType.string,
         };
+    }
+
+    fn write_value(self: FlagValue, writer: std.io.AnyWriter) !void {
+        switch (self) {
+            .boolean => try writer.print(", default: {any}", .{self.boolean}),
+            .int64 => try writer.print(", default: {any}", .{self.int64}),
+            .string => try writer.print(", default: {s}", .{self.string}),
+        }
     }
 };
 
@@ -486,6 +512,36 @@ test "add a flag and check its existence by name" {
     try flags.addFlag(namespace_flag, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("namespace").?.name);
+}
+
+test "print flags" {
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("cli-craft"))
+        .withShortName('n')
+        .build();
+
+    const verbose_flag = Flag.builder("verbose", "Define verbose output", FlagType.boolean)
+        .withShortName('v')
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
+    try flags.addFlag(verbose_flag, &diagnostics);
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+
+    try flags.print(writer.any());
+
+    const value = buffer.items;
+
+    try std.testing.expect(std.mem.indexOf(u8, value, "namespace").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "cli-craft").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "verbose").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, value, "Define verbose output").? > 0);
 }
 
 test "add a flag and check its existence by short name" {

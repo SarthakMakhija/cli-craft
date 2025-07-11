@@ -17,6 +17,7 @@
 - [ ] Add errors on console 
     - [X] Pass a single ErrorLog
     - [ ] Revisit diagnostics across all the methods
+    - [ ] Add argument specification errors in diagnostics
 - [X] Add support for local flags
 - [X] Add support for executing commands with local flags
 - [X] Add support for passing flags with default value
