@@ -20,6 +20,8 @@ const ErrorLog = @import("log.zig").ErrorLog;
 const std = @import("std");
 const Sort = std.sort;
 
+const prettytable = @import("prettytable");
+
 const BestDistance = 3;
 
 pub const CommandAddError = error{ ChildCommandAdded, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
@@ -263,28 +265,49 @@ pub const Commands = struct {
         self.command_by_name.deinit();
     }
 
-    pub fn print(self: Commands, writer: std.io.AnyWriter) !void {
+    pub fn print(self: Commands, table: *prettytable.Table, allocator: std.mem.Allocator, writer: std.io.AnyWriter) !void {
+        var column_values = std.ArrayList([]const u8).init(allocator);
+        defer {
+            for (column_values.items) |column_value| {
+                allocator.free(column_value);
+            }
+            column_values.deinit();
+        }
+
         try writer.print("Available Commands:\n", .{});
         var iterator = self.command_by_name.iterator();
 
+        var aliases_str: []const u8 = "-";
         while (iterator.next()) |entry| {
             const command_name = entry.key_ptr.*;
             const command = entry.value_ptr;
 
-            try writer.print("  {s}", .{command_name});
-
+            aliases_str = "-";
             if (command.aliases) |aliases| {
                 if (aliases.len > 0) {
-                    try writer.writeAll(" (aliases:");
+                    var aliases_builder = std.ArrayList(u8).init(allocator);
+                    defer aliases_builder.deinit();
+
+                    var first_alias = true;
+                    try aliases_builder.writer().writeAll("(");
+
                     for (aliases) |alias| {
-                        try writer.print(" {s}", .{alias});
+                        if (!first_alias) {
+                            try aliases_builder.writer().writeAll(", ");
+                        }
+                        try aliases_builder.writer().print("{s}", .{alias});
+                        first_alias = false;
                     }
-                    try writer.writeAll(")");
+                    try aliases_builder.writer().writeAll(")");
+                    aliases_str = try aliases_builder.toOwnedSlice();
+
+                    try column_values.append(aliases_str);
                 }
             }
-            try writer.print("    {s}\n", .{command.description});
+            try table.addRow(&[_][]const u8{ command_name, aliases_str, command.description });
         }
-        try writer.writeAll("\n");
+
+        try table.print(writer);
     }
 
     fn add(self: *Commands, command: Command, allow_child: bool, diagnostics: *Diagnostics) !void {
@@ -967,8 +990,12 @@ test "print commands" {
     defer buffer.deinit();
     var writer = buffer.writer();
 
-    try commands.print(writer.any());
+    var table = prettytable.Table.init(std.testing.allocator);
+    defer table.deinit();
 
+    table.setFormat(prettytable.FORMAT_CLEAN);
+
+    try commands.print(&table, std.testing.allocator, writer.any());
     const value = buffer.items;
 
     try std.testing.expect(std.mem.indexOf(u8, value, "stringer").? > 0);
