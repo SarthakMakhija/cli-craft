@@ -212,7 +212,8 @@ pub const Command = struct {
 };
 
 pub const Commands = struct {
-    commands: std.StringHashMap(Command),
+    command_by_name: std.StringHashMap(Command),
+    command_name_by_alias: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
     error_log: ErrorLog,
 
@@ -221,7 +222,8 @@ pub const Commands = struct {
         error_log: ErrorLog,
     ) Commands {
         return .{
-            .commands = std.StringHashMap(Command).init(allocator),
+            .command_by_name = std.StringHashMap(Command).init(allocator),
+            .command_name_by_alias = std.StringHashMap([]const u8).init(allocator),
             .allocator = allocator,
             .error_log = error_log,
         };
@@ -235,23 +237,30 @@ pub const Commands = struct {
         return try self.add(command, false, diagnostics);
     }
 
-    pub fn get(self: Commands, name: []const u8) ?Command {
-        return self.commands.get(name);
+    pub fn get(self: Commands, command_name_or_alias: []const u8) ?Command {
+        if (self.command_by_name.get(command_name_or_alias)) |command| {
+            return command;
+        }
+        if (self.command_name_by_alias.get(command_name_or_alias)) |command_name| {
+            return self.command_by_name.get(command_name);
+        }
+        return null;
     }
 
     pub fn execute(self: Commands, arguments: *Arguments, diagnostics: *Diagnostics) !void {
-        const command_name = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
-        const command = self.get(command_name) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name } });
+        const command_name_or_alias = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
+        const command = self.get(command_name_or_alias) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name_or_alias } });
 
         return try command.execute(arguments, diagnostics, self.allocator);
     }
 
     pub fn deinit(self: *Commands) void {
-        var iterator = self.commands.valueIterator();
+        var iterator = self.command_by_name.valueIterator();
         while (iterator.next()) |command| {
             command.deinit();
         }
-        self.commands.deinit();
+        self.command_name_by_alias.deinit();
+        self.command_by_name.deinit();
     }
 
     fn add(self: *Commands, command: Command, allow_child: bool, diagnostics: *Diagnostics) !void {
@@ -260,18 +269,18 @@ pub const Commands = struct {
         }
 
         try self.ensureCommandDoesNotExist(command, diagnostics);
-        try self.commands.put(command.name, command);
+        try self.command_by_name.put(command.name, command);
 
         if (command.aliases) |aliases| {
             for (aliases) |alias| {
-                try self.commands.put(alias, command);
+                try self.command_name_by_alias.put(alias, command.name);
             }
         }
     }
 
     fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList(CommandSuggestion) {
         var suggestions = std.ArrayList(CommandSuggestion).init(self.allocator);
-        var command_names = self.commands.keyIterator();
+        var command_names = self.command_by_name.keyIterator();
 
         while (command_names.next()) |command_name| {
             const distance = try StringDistance.levenshtein(self.allocator, name, command_name.*);
@@ -293,15 +302,15 @@ pub const Commands = struct {
     }
 
     fn ensureCommandDoesNotExist(self: Commands, command: Command, diagnostics: *Diagnostics) !void {
-        if (self.commands.contains(command.name)) {
+        if (self.command_by_name.contains(command.name)) {
             return diagnostics.reportAndFail(.{ .CommandNameAlreadyExists = .{ .command = command.name } });
         }
         if (command.aliases) |aliases| {
             for (aliases) |alias| {
-                if (self.commands.get(alias)) |other_command| {
+                if (self.command_name_by_alias.get(alias)) |other_command_name| {
                     return diagnostics.reportAndFail(.{ .CommandAliasAlreadyExists = .{
                         .alias = alias,
-                        .existing_command = other_command.name,
+                        .existing_command = other_command_name,
                     } });
                 }
             }
