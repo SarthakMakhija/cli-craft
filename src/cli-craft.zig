@@ -18,6 +18,8 @@ pub const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 pub const ParsedFlags = @import("flags.zig").ParsedFlags;
 pub const ParsedFlag = @import("flags.zig").ParsedFlag;
+pub const CommandHelp = @import("help.zig").CommandHelp;
+
 // Re-exporting public API structs end
 
 const Commands = @import("commands.zig").Commands;
