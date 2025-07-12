@@ -28,6 +28,7 @@ pub const CommandHelp = struct {
     pub fn printHelp(self: CommandHelp, allocator: std.mem.Allocator, flags: *Flags) !void {
         try self.writer.print("{s} - {s}\n\n", .{ self.command.name, self.command.description });
         try self.write_usage(flags, allocator);
+        try self.write_aliases();
         try self.write_flags(flags, allocator);
         try self.write_subcommands(allocator);
         try self.write_global_flags(allocator);
@@ -56,6 +57,16 @@ pub const CommandHelp = struct {
             },
         }
         try self.writer.print("{s} \n\n", .{usage.items});
+    }
+
+    fn write_aliases(self: CommandHelp) !void {
+        var table = prettytable.Table.init(std.testing.allocator);
+        defer table.deinit();
+
+        table.setFormat(prettytable.FORMAT_CLEAN);
+
+        try self.command.printAliases(&table, self.writer);
+        try self.writer.print("\n", .{});
     }
 
     fn write_flags(self: CommandHelp, flags: *Flags, allocator: std.mem.Allocator) !void {
@@ -134,6 +145,52 @@ test "print command help for a command that has no subcommands" {
     try command_help.printHelp(std.testing.allocator, &flags);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "verbose").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "priority").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "timeout").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
+}
+
+test "print command help for a command that has subcommands" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = try Command.initParent("stringer", "manipulate strings", ErrorLog.initNoOperation(), std.testing.allocator);
+    defer command.deinit();
+    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+
+    var sub_command = Command.init("reverse", "reverse strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    defer sub_command.deinit();
+
+    try command.addSubcommand(&sub_command);
+
+    var diagnostics: Diagnostics = .{};
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
+    try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    var command_help = CommandHelp.init(command, writer.any());
+
+    try command_help.printHelp(std.testing.allocator, &flags);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "reverse").? > 0);
+
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "verbose").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "priority").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "timeout").? > 0);

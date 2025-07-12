@@ -117,6 +117,18 @@ pub const Command = struct {
         self.deprecated_message = deprecated_message;
     }
 
+    pub fn printAliases(self: Command, table: *prettytable.Table, writer: std.io.AnyWriter) !void {
+        if (self.aliases) |aliases| {
+            if (aliases.len > 0) {
+                try writer.print("Aliases:\n", .{});
+                for (aliases) |alias| {
+                    try table.addRow(&[_][]const u8{alias});
+                }
+            }
+        }
+        try table.print(writer);
+    }
+
     pub fn deinit(self: *Command) void {
         self.action.deinit();
         if (self.local_flags) |*flags| {
@@ -277,12 +289,12 @@ pub const Commands = struct {
         try writer.print("Available Commands:\n", .{});
         var iterator = self.command_by_name.iterator();
 
-        var aliases_str: []const u8 = "-";
+        var aliases_str: []const u8 = "";
         while (iterator.next()) |entry| {
             const command_name = entry.key_ptr.*;
             const command = entry.value_ptr;
 
-            aliases_str = "-";
+            aliases_str = "";
             if (command.aliases) |aliases| {
                 if (aliases.len > 0) {
                     var aliases_builder = std.ArrayList(u8).init(allocator);
@@ -636,6 +648,34 @@ test "attempt to add an existing persistent flag" {
     defer command.deinit();
 
     try std.testing.expectError(FlagErrors.FlagNameAlreadyExists, command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build()));
+}
+
+test "print command aliases" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+
+    defer command.deinit();
+
+    try std.testing.expect(command.aliases != null);
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+
+    var table = prettytable.Table.init(std.testing.allocator);
+    defer table.deinit();
+
+    table.setFormat(prettytable.FORMAT_CLEAN);
+    try command.printAliases(&table, writer.any());
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);
 }
 
 test "execute a command passing flags and arguments" {
