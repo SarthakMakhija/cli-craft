@@ -14,22 +14,23 @@ const ParsedFlags = @import("flags.zig").ParsedFlags;
 const HelpFlagDisplayLabel = @import("flags.zig").HelpFlagDisplayLabel;
 
 const ErrorLog = @import("log.zig").ErrorLog;
+const OutputStream = @import("log.zig").OutputStream;
 
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 pub const CommandHelp = struct {
     command: Command,
-    writer: std.io.AnyWriter,
+    output_stream: OutputStream,
 
-    pub fn init(command: Command, writer: std.io.AnyWriter) CommandHelp {
+    pub fn init(command: Command, output_stream: OutputStream) CommandHelp {
         return .{
             .command = command,
-            .writer = writer,
+            .output_stream = output_stream,
         };
     }
 
     pub fn printHelp(self: CommandHelp, allocator: std.mem.Allocator, flags: *Flags) !void {
-        try self.writer.print("{s} - {s}\n\n", .{ self.command.name, self.command.description });
+        try self.output_stream.print("{s} - {s}\n\n", .{ self.command.name, self.command.description });
         try self.write_usage(flags, allocator);
         try self.write_aliases();
         try self.write_flags(flags, allocator);
@@ -59,7 +60,7 @@ pub const CommandHelp = struct {
                 try usage.writer().writeAll(" [arguments]");
             },
         }
-        try self.writer.print("{s} \n\n", .{usage.items});
+        try self.output_stream.print("{s} \n\n", .{usage.items});
     }
 
     fn write_aliases(self: CommandHelp) !void {
@@ -68,8 +69,8 @@ pub const CommandHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.command.printAliases(&table, self.writer);
-        try self.writer.print("\n", .{});
+        try self.command.printAliases(&table, self.output_stream);
+        try self.output_stream.print("\n", .{});
     }
 
     fn write_flags(self: CommandHelp, flags: *Flags, allocator: std.mem.Allocator) !void {
@@ -79,8 +80,8 @@ pub const CommandHelp = struct {
 
             table.setFormat(prettytable.FORMAT_CLEAN);
 
-            try flags.print(&table, allocator, self.writer);
-            try self.writer.print("\n", .{});
+            try flags.print(&table, self.output_stream, allocator);
+            try self.output_stream.print("\n", .{});
         }
     }
 
@@ -92,8 +93,8 @@ pub const CommandHelp = struct {
 
                 table.setFormat(prettytable.FORMAT_CLEAN);
 
-                try commands.print(&table, allocator, self.writer);
-                try self.writer.print("\n", .{});
+                try commands.print(&table, self.output_stream, allocator);
+                try self.output_stream.print("\n", .{});
             },
             else => {},
         }
@@ -105,36 +106,36 @@ pub const CommandHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.writer.writeAll("Global flags:\n");
+        try self.output_stream.printAll("Global flags:\n");
         try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
 
-        try table.print(self.writer);
-        try self.writer.print("\n\n", .{});
+        try self.output_stream.printTable(&table);
+        try self.output_stream.print("\n\n", .{});
     }
 
     fn write_deprecated_message(self: CommandHelp) !void {
         if (self.command.deprecated_message) |msg| {
-            try self.writer.print("Deprecated: {s}\n\n", .{msg});
+            try self.output_stream.print("Deprecated: {s}\n\n", .{msg});
         }
     }
 };
 
 pub const CommandsHelp = struct {
     commands: Commands,
-    writer: std.io.AnyWriter,
+    output_stream: OutputStream,
     app_description: ?[]const u8,
 
-    pub fn init(commands: Commands, app_description: ?[]const u8, writer: std.io.AnyWriter) CommandsHelp {
+    pub fn init(commands: Commands, app_description: ?[]const u8, output_stream: OutputStream) CommandsHelp {
         return .{
             .commands = commands,
-            .writer = writer,
+            .output_stream = output_stream,
             .app_description = app_description,
         };
     }
 
     pub fn printHelp(self: CommandsHelp, allocator: std.mem.Allocator) !void {
         if (self.app_description) |app_description| {
-            try self.writer.print("{s}\n", .{app_description});
+            try self.output_stream.print("{s}\n", .{app_description});
         }
         try self.write_usage(allocator);
         try self.write_allcommands(allocator);
@@ -146,7 +147,7 @@ pub const CommandsHelp = struct {
         defer usage.deinit();
 
         try usage.writer().print("Usage: [app-name] [command] [flags] [arguments]", .{});
-        try self.writer.print("\n", .{});
+        try self.output_stream.print("\n", .{});
     }
 
     fn write_allcommands(self: CommandsHelp, allocator: std.mem.Allocator) !void {
@@ -155,8 +156,8 @@ pub const CommandsHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.commands.print(&table, allocator, self.writer);
-        try self.writer.print("\n", .{});
+        try self.commands.print(&table, self.output_stream, allocator);
+        try self.output_stream.print("\n", .{});
     }
 
     fn write_global_flags(self: CommandsHelp, allocator: std.mem.Allocator) !void {
@@ -165,11 +166,11 @@ pub const CommandsHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.writer.writeAll("Global flags:\n");
+        try self.output_stream.printAll("Global flags:\n");
         try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
 
-        try table.print(self.writer);
-        try self.writer.print("\n", .{});
+        try self.output_stream.printTable(&table);
+        try self.output_stream.print("\n", .{});
     }
 };
 
@@ -197,7 +198,7 @@ test "print command help for a command that has no subcommands" {
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    var command_help = CommandHelp.init(command, writer.any());
+    var command_help = CommandHelp.init(command, OutputStream.initStdErrWriter(writer.any()));
 
     try command_help.printHelp(std.testing.allocator, &flags);
 
@@ -239,7 +240,7 @@ test "print command help for a command that has subcommands" {
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    var command_help = CommandHelp.init(command, writer.any());
+    var command_help = CommandHelp.init(command, OutputStream.initStdErrWriter(writer.any()));
 
     try command_help.printHelp(std.testing.allocator, &flags);
 
@@ -279,7 +280,7 @@ test "print all commands" {
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    var command_help = CommandsHelp.init(commands, null, writer.any());
+    var command_help = CommandsHelp.init(commands, null, OutputStream.initStdErrWriter(writer.any()));
 
     try command_help.printHelp(std.testing.allocator);
 
@@ -316,7 +317,7 @@ test "print all commands with application description" {
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    var command_help = CommandsHelp.init(commands, "application for manipulatins strings", writer.any());
+    var command_help = CommandsHelp.init(commands, "application for manipulatins strings", OutputStream.initStdErrWriter(writer.any()));
 
     try command_help.printHelp(std.testing.allocator);
 

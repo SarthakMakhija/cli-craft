@@ -16,6 +16,7 @@ const CommandParsingError = @import("command-line-parser.zig").CommandParsingErr
 const StringDistance = @import("string-distance.zig").StringDistance;
 
 const ErrorLog = @import("log.zig").ErrorLog;
+const OutputStream = @import("log.zig").OutputStream;
 
 const std = @import("std");
 const Sort = std.sort;
@@ -117,16 +118,16 @@ pub const Command = struct {
         self.deprecated_message = deprecated_message;
     }
 
-    pub fn printAliases(self: Command, table: *prettytable.Table, writer: std.io.AnyWriter) !void {
+    pub fn printAliases(self: Command, table: *prettytable.Table, output_stream: OutputStream) !void {
         if (self.aliases) |aliases| {
             if (aliases.len > 0) {
-                try writer.print("Aliases:\n", .{});
+                try output_stream.print("Aliases:\n", .{});
                 for (aliases) |alias| {
                     try table.addRow(&[_][]const u8{alias});
                 }
             }
         }
-        try table.print(writer);
+        try output_stream.printTable(table);
     }
 
     pub fn deinit(self: *Command) void {
@@ -298,7 +299,7 @@ pub const Commands = struct {
         self.command_by_name.deinit();
     }
 
-    pub fn print(self: Commands, table: *prettytable.Table, allocator: std.mem.Allocator, writer: std.io.AnyWriter) !void {
+    pub fn print(self: Commands, table: *prettytable.Table, output_stream: OutputStream, allocator: std.mem.Allocator) !void {
         var column_values = std.ArrayList([]const u8).init(allocator);
         defer {
             for (column_values.items) |column_value| {
@@ -307,7 +308,7 @@ pub const Commands = struct {
             column_values.deinit();
         }
 
-        try writer.print("Available Commands:\n", .{});
+        try output_stream.print("Available Commands:\n", .{});
         var iterator = self.command_by_name.iterator();
 
         var aliases_str: []const u8 = "";
@@ -340,7 +341,7 @@ pub const Commands = struct {
             try table.addRow(&[_][]const u8{ command_name, aliases_str, command.description });
         }
 
-        try table.print(writer);
+        try output_stream.printTable(table);
     }
 
     fn add(self: *Commands, command: Command, allow_child: bool, diagnostics: *Diagnostics) !void {
@@ -740,7 +741,7 @@ test "print command aliases" {
     defer table.deinit();
 
     table.setFormat(prettytable.FORMAT_CLEAN);
-    try command.printAliases(&table, writer.any());
+    try command.printAliases(&table, OutputStream.initStdErrWriter(writer.any()));
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);
@@ -1103,7 +1104,7 @@ test "print commands" {
 
     table.setFormat(prettytable.FORMAT_CLEAN);
 
-    try commands.print(&table, std.testing.allocator, writer.any());
+    try commands.print(&table, OutputStream.initStdErrWriter(writer.any()), std.testing.allocator);
     const value = buffer.items;
 
     try std.testing.expect(std.mem.indexOf(u8, value, "stringer").? > 0);

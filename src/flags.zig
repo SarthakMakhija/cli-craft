@@ -4,6 +4,8 @@ const prettytable = @import("prettytable");
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 const DiagnosticType = @import("diagnostics.zig").DiagnosticType;
 
+const OutputStream = @import("log.zig").OutputStream;
+
 pub const HelpFlagName = "help";
 pub const HelpFlagShortName = "h";
 pub const HelpFlagDisplayLabel = "--help, -h";
@@ -98,7 +100,7 @@ pub const Flags = struct {
         }
     }
 
-    pub fn print(self: *Flags, table: *prettytable.Table, allocator: std.mem.Allocator, writer: std.io.AnyWriter) !void {
+    pub fn print(self: *Flags, table: *prettytable.Table, output_stream: OutputStream, allocator: std.mem.Allocator) !void {
         var column_values = std.ArrayList([]const u8).init(allocator);
         defer {
             for (column_values.items) |column_value| {
@@ -107,7 +109,7 @@ pub const Flags = struct {
             column_values.deinit();
         }
 
-        try writer.writeAll("Flags:\n");
+        try output_stream.printAll("Flags:\n");
         var iterator = self.flag_by_name.iterator();
 
         while (iterator.next()) |entry| {
@@ -136,7 +138,7 @@ pub const Flags = struct {
 
             try table.addRow(&[_][]const u8{ flag_name, description });
         }
-        return try table.print(writer);
+        return try output_stream.printTable(table);
     }
 
     pub fn deinit(self: *Flags) void {
@@ -567,7 +569,7 @@ test "print flags" {
 
     table.setFormat(prettytable.FORMAT_CLEAN);
 
-    try flags.print(&table, std.testing.allocator, writer.any());
+    try flags.print(&table, OutputStream.initStdErrWriter(writer.any()), std.testing.allocator);
     const value = buffer.items;
 
     try std.testing.expect(std.mem.indexOf(u8, value, "--verbose").? > 0);
