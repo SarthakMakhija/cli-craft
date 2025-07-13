@@ -4,7 +4,7 @@ const prettytable = @import("prettytable");
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 const DiagnosticType = @import("diagnostics.zig").DiagnosticType;
 
-const OutputStream = @import("log.zig").OutputStream;
+const OutputStream = @import("stream.zig").OutputStream;
 
 pub const HelpFlagName = "help";
 pub const HelpFlagShortName = "h";

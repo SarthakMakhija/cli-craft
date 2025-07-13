@@ -3,7 +3,7 @@ const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
 const CommandErrors = @import("commands.zig").CommandErrors;
 
-const OutputStream = @import("log.zig").OutputStream;
+const OutputStream = @import("stream.zig").OutputStream;
 
 pub const Diagnostics = struct {
     diagnostics_type: ?DiagnosticType = null,

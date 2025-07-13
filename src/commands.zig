@@ -15,7 +15,7 @@ const CommandParsingError = @import("command-line-parser.zig").CommandParsingErr
 
 const StringDistance = @import("string-distance.zig").StringDistance;
 
-const OutputStream = @import("log.zig").OutputStream;
+const OutputStream = @import("stream.zig").OutputStream;
 
 const std = @import("std");
 const Sort = std.sort;

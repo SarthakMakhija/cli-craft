@@ -13,7 +13,7 @@ const FlagType = @import("flags.zig").FlagType;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const HelpFlagDisplayLabel = @import("flags.zig").HelpFlagDisplayLabel;
 
-const OutputStream = @import("log.zig").OutputStream;
+const OutputStream = @import("stream.zig").OutputStream;
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 pub const CommandHelp = struct {

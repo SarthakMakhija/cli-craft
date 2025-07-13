@@ -25,7 +25,7 @@ pub const CommandHelp = @import("help.zig").CommandHelp;
 const Commands = @import("commands.zig").Commands;
 const Arguments = @import("arguments.zig").Arguments;
 
-const OutputStream = @import("log.zig").OutputStream;
+const OutputStream = @import("stream.zig").OutputStream;
 
 pub const GlobalOptions = struct {
     allocator: std.mem.Allocator,

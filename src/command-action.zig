@@ -8,7 +8,7 @@ const CommandFn = @import("commands.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
-const OutputStream = @import("log.zig").OutputStream;
+const OutputStream = @import("stream.zig").OutputStream;
 
 pub const CommandAction = union(enum) {
     executable: CommandFn,
