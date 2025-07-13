@@ -4,6 +4,10 @@ const prettytable = @import("prettytable");
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 const DiagnosticType = @import("diagnostics.zig").DiagnosticType;
 
+pub const HelpFlagName = "help";
+pub const HelpFlagShortName = "h";
+pub const HelpFlagDisplayLabel = "--help, -h";
+
 pub const FlagAddError = error{
     FlagNameAlreadyExists,
     FlagShortNameAlreadyExists,
@@ -353,7 +357,7 @@ pub const ParsedFlags = struct {
     }
 
     pub fn containsHelp(self: ParsedFlags) bool {
-        return self.flag_by_name.contains("help") or self.flag_by_name.contains("h");
+        return self.flag_by_name.contains(HelpFlagName) or self.flag_by_name.contains(HelpFlagShortName);
     }
 
     pub fn deinit(self: *ParsedFlags) void {

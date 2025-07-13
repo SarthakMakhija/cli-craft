@@ -9,6 +9,7 @@ const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
+const HelpFlagDisplayLabel = @import("flags.zig").HelpFlagDisplayLabel;
 
 const ErrorLog = @import("log.zig").ErrorLog;
 
@@ -103,7 +104,7 @@ pub const CommandHelp = struct {
         table.setFormat(prettytable.FORMAT_CLEAN);
 
         try self.writer.writeAll("Global options:\n");
-        try table.addRow(&[_][]const u8{ "--help, -h", "Show help for command" });
+        try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
 
         try table.print(self.writer);
         try self.writer.print("\n\n", .{});
