@@ -97,14 +97,12 @@ pub const Command = struct {
         var target_flags: *?Flags = undefined;
 
         if (flag.persistent) {
-            if (self.persistent_flags == null) {
-                self.persistent_flags = Flags.init(self.allocator);
-            }
+            try self.ensureLocalFlagsDoNotContain(flag);
+            self.persistent_flags = self.persistent_flags orelse Flags.init(self.allocator);
             target_flags = &self.persistent_flags;
         } else {
-            if (self.local_flags == null) {
-                self.local_flags = Flags.init(self.allocator);
-            }
+            try self.ensurePersistentFlagsDoNotContain(flag);
+            self.local_flags = self.local_flags orelse Flags.init(self.allocator);
             target_flags = &self.local_flags;
         }
         target_flags.*.?.addFlag(flag, &diagnostics) catch |err| {
@@ -136,6 +134,26 @@ pub const Command = struct {
         }
         if (self.persistent_flags) |*flags| {
             flags.deinit();
+        }
+    }
+
+    fn ensureLocalFlagsDoNotContain(self: Command, flag: Flag) !void {
+        var diagnostics: Diagnostics = .{};
+        if (self.local_flags) |local_flags| {
+            local_flags.ensureFlagDoesNotExist(flag, &diagnostics) catch |err| {
+                diagnostics.log_using(self.error_log);
+                return err;
+            };
+        }
+    }
+
+    fn ensurePersistentFlagsDoNotContain(self: Command, flag: Flag) !void {
+        var diagnostics: Diagnostics = .{};
+        if (self.persistent_flags) |persistent_flags| {
+            persistent_flags.ensureFlagDoesNotExist(flag, &diagnostics) catch |err| {
+                diagnostics.log_using(self.error_log);
+                return err;
+            };
         }
     }
 
@@ -625,6 +643,18 @@ test "attempt to add an existing local flag" {
     try std.testing.expectError(FlagErrors.FlagNameAlreadyExists, command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build()));
 }
 
+test "attempt to add a local flag which exists as persistent flag" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    defer command.deinit();
+
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build());
+    try std.testing.expectError(FlagErrors.FlagNameAlreadyExists, command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build()));
+}
+
 test "add a persistent flag" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
@@ -644,6 +674,19 @@ test "attempt to add an existing persistent flag" {
 
     var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build());
+
+    defer command.deinit();
+
+    try std.testing.expectError(FlagErrors.FlagNameAlreadyExists, command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).markPersistent().build()));
+}
+
+test "attempt to add a persistent flag which exists as local flag" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {}
+    }.run;
+
+    var command = Command.init("add", "add numbers", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
 
     defer command.deinit();
 
