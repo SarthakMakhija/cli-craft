@@ -352,6 +352,10 @@ pub const ParsedFlags = struct {
         }
     }
 
+    pub fn containsHelp(self: ParsedFlags) bool {
+        return self.flag_by_name.contains("help") or self.flag_by_name.contains("h");
+    }
+
     pub fn deinit(self: *ParsedFlags) void {
         self.flag_by_name.deinit();
     }
@@ -894,4 +898,45 @@ test "merge parsed flags containing duplicate flags" {
 
     try std.testing.expectEqualStrings("default_namespace", try flags.getString("namespace"));
     try std.testing.expect(try flags.getBoolean("verbose") == false);
+}
+
+test "parsed flags contain help flag 1" {
+    var flags = ParsedFlags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = ParsedFlags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(ParsedFlag.init("help", FlagValue.type_string("")));
+    try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
+    try other_flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace again")));
+
+    try std.testing.expect(flags.containsHelp());
+}
+
+test "parsed flags contain help flag 2" {
+    var flags = ParsedFlags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = ParsedFlags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try flags.addFlag(ParsedFlag.init("h", FlagValue.type_string("")));
+    try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
+    try other_flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace again")));
+
+    try std.testing.expect(flags.containsHelp());
+}
+
+test "parsed flags does not contain help flag" {
+    var flags = ParsedFlags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var other_flags = ParsedFlags.init(std.testing.allocator);
+    defer other_flags.deinit();
+
+    try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
+    try other_flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace again")));
+
+    try std.testing.expect(flags.containsHelp() == false);
 }
