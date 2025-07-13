@@ -24,7 +24,8 @@ pub const CommandHelp = @import("help.zig").CommandHelp;
 
 const Commands = @import("commands.zig").Commands;
 const Arguments = @import("arguments.zig").Arguments;
-const ErrorLog = @import("log.zig").ErrorLog;
+
+const OutputStream = @import("log.zig").OutputStream;
 
 pub const GlobalOptions = struct {
     allocator: std.mem.Allocator,
@@ -36,19 +37,19 @@ pub const GlobalOptions = struct {
 pub const CliCraft = struct {
     options: GlobalOptions,
     commands: Commands,
-    error_log: ErrorLog,
+    output_stream: OutputStream,
 
     pub fn init(options: GlobalOptions) CliCraft {
-        const error_log = ErrorLog.init(options.error_options.writer);
-        return .{ .options = options, .commands = Commands.init(options.allocator, error_log), .error_log = error_log };
+        const output_stream = OutputStream.initStdOutWriter(options.error_options.writer);
+        return .{ .options = options, .commands = Commands.init(options.allocator, output_stream), .output_stream = output_stream };
     }
 
     pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) Command {
-        return Command.init(name, description, executable, self.error_log, self.options.allocator);
+        return Command.init(name, description, executable, self.output_stream, self.options.allocator);
     }
 
     pub fn newParentCommand(self: CliCraft, name: []const u8, description: []const u8) !Command {
-        return try Command.initParent(name, description, self.error_log, self.options.allocator);
+        return try Command.initParent(name, description, self.output_stream, self.options.allocator);
     }
 
     pub fn addExecutableCommand(self: *CliCraft, name: []const u8, description: []const u8, executable: CommandFn) !void {
@@ -63,7 +64,7 @@ pub const CliCraft = struct {
         var diagnostics: Diagnostics = .{};
 
         self.commands.add_disallow_child(command, &diagnostics) catch |err| {
-            diagnostics.log_using(self.error_log);
+            diagnostics.log_using(self.output_stream);
             return err;
         };
     }
@@ -72,7 +73,7 @@ pub const CliCraft = struct {
         var diagnostics: Diagnostics = .{};
 
         self.commands.execute(Arguments.init(), &diagnostics) catch |err| {
-            diagnostics.log_using(self.error_log);
+            diagnostics.log_using(self.output_stream);
             return err;
         };
     }
@@ -82,7 +83,7 @@ pub const CliCraft = struct {
         var diagnostics: Diagnostics = .{};
 
         self.commands.execute(&command_line_arguments, &diagnostics) catch |err| {
-            diagnostics.log_using(self.error_log);
+            diagnostics.log_using(self.output_stream);
             return err;
         };
     }

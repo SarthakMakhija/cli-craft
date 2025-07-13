@@ -8,8 +8,7 @@ const CommandFn = @import("commands.zig").CommandFn;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
-
-const ErrorLog = @import("log.zig").ErrorLog;
+const OutputStream = @import("log.zig").OutputStream;
 
 pub const CommandAction = union(enum) {
     executable: CommandFn,
@@ -19,8 +18,8 @@ pub const CommandAction = union(enum) {
         return .{ .executable = executable };
     }
 
-    pub fn initSubcommands(allocator: std.mem.Allocator, error_log: ErrorLog) !CommandAction {
-        return .{ .subcommands = Commands.init(allocator, error_log) };
+    pub fn initSubcommands(allocator: std.mem.Allocator, output_stream: OutputStream) !CommandAction {
+        return .{ .subcommands = Commands.init(allocator, output_stream) };
     }
 
     pub fn addSubcommand(self: *CommandAction, parent_command_name: []const u8, subcommand: *Command, diagnostics: *Diagnostics) !void {
@@ -66,9 +65,9 @@ test "add a sub-command" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
 
-    var command_action = try CommandAction.initSubcommands(std.testing.allocator, ErrorLog.initNoOperation());
+    var command_action = try CommandAction.initSubcommands(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer command_action.deinit();
 
     var diagnostics: Diagnostics = .{};
@@ -87,10 +86,10 @@ test "attempt to initialize a parent command with a subcommand having the same n
         }
     }.run;
 
-    var command_action = try CommandAction.initSubcommands(std.testing.allocator, ErrorLog.initNoOperation());
+    var command_action = try CommandAction.initSubcommands(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer command_action.deinit();
 
-    var get_command = Command.init("kubectl", "get objects", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var get_command = Command.init("kubectl", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer get_command.deinit();
 
     var diagnostics: Diagnostics = .{};
@@ -107,7 +106,7 @@ test "attempt to add a sub-command to an executable command" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
 
     var command_action = CommandAction.initExecutable(runnable);

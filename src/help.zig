@@ -13,9 +13,7 @@ const FlagType = @import("flags.zig").FlagType;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const HelpFlagDisplayLabel = @import("flags.zig").HelpFlagDisplayLabel;
 
-const ErrorLog = @import("log.zig").ErrorLog;
 const OutputStream = @import("log.zig").OutputStream;
-
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 pub const CommandHelp = struct {
@@ -181,7 +179,7 @@ test "print command help for a command that has no subcommands" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
 
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
@@ -219,11 +217,11 @@ test "print command help for a command that has subcommands" {
         }
     }.run;
 
-    var command = try Command.initParent("stringer", "manipulate strings", ErrorLog.initNoOperation(), std.testing.allocator);
+    var command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
-    var sub_command = Command.init("reverse", "reverse strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var sub_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer sub_command.deinit();
 
     try command.addSubcommand(&sub_command);
@@ -263,14 +261,14 @@ test "print all commands" {
         }
     }.run;
 
-    var stringer_command = try Command.initParent("stringer", "manipulate strings", ErrorLog.initNoOperation(), std.testing.allocator);
+    var stringer_command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
 
-    var reverse_command = Command.init("reverse", "reverse strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var reverse_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     reverse_command.addAliases(&[_][]const u8{"rev"});
 
     var diagnostics: Diagnostics = .{};
-    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
+    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
 
     try commands.add_disallow_child(stringer_command, &diagnostics);
@@ -300,14 +298,14 @@ test "print all commands with application description" {
         }
     }.run;
 
-    var stringer_command = try Command.initParent("stringer", "manipulate strings", ErrorLog.initNoOperation(), std.testing.allocator);
+    var stringer_command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
 
-    var reverse_command = Command.init("reverse", "reverse strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    var reverse_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     reverse_command.addAliases(&[_][]const u8{"rev"});
 
     var diagnostics: Diagnostics = .{};
-    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
+    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
 
     try commands.add_disallow_child(stringer_command, &diagnostics);

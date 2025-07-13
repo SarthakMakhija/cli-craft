@@ -3,66 +3,66 @@ const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
 const CommandErrors = @import("commands.zig").CommandErrors;
 
-const ErrorLog = @import("log.zig").ErrorLog;
+const OutputStream = @import("log.zig").OutputStream;
 
 pub const Diagnostics = struct {
     diagnostics_type: ?DiagnosticType = null,
 
-    pub fn log_using(self: Diagnostics, error_log: ErrorLog) void {
+    pub fn log_using(self: Diagnostics, output_stream: OutputStream) void {
         if (self.diagnostics_type) |diagnostics_type| switch (diagnostics_type) {
             .FlagNameAlreadyExists => |context| {
-                error_log.log("Error: Flag name '{s}' already exists.\n", .{context.flag_name});
+                output_stream.printError("Error: Flag name '{s}' already exists.\n", .{context.flag_name}) catch {};
             },
             .FlagShortNameAlreadyExists => |context| {
-                error_log.log("Error: Flag short name '{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name });
+                output_stream.printError("Error: Flag short name '{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name }) catch {};
             },
             .FlagShortNameMergeConflict => |context| {
-                error_log.log("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name });
+                output_stream.printError("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name }) catch {};
             },
             .InvalidBoolean => |context| {
-                error_log.log("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name });
+                output_stream.printError("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name }) catch {};
             },
             .InvalidInteger => |context| {
-                error_log.log("Error: Invalid integer value '{s}' for flag '{s}'. Expected a number.\n", .{ context.value, context.flag_name });
+                output_stream.printError("Error: Invalid integer value '{s}' for flag '{s}'. Expected a number.\n", .{ context.value, context.flag_name }) catch {};
             },
             .FlagNotFound => |context| {
-                error_log.log("Error: Flag '{s}' not found.\n", .{context.flag_name});
+                output_stream.printError("Error: Flag '{s}' not found.\n", .{context.flag_name}) catch {};
             },
             .FlagTypeMismatch => |context| {
-                error_log.log("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n", .{ context.flag_name, @tagName(context.expected_type), context.value });
+                output_stream.printError("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n", .{ context.flag_name, @tagName(context.expected_type), context.value }) catch {};
             },
             .NoFlagsAddedToCommand => |context| {
-                error_log.log("Error: No flags added to the command but found the flag '{s}'.\n", .{context.parsed_flag});
+                output_stream.printError("Error: No flags added to the command but found the flag '{s}'.\n", .{context.parsed_flag}) catch {};
             },
             .NoFlagValueProvided => |context| {
-                error_log.log("Error: No flag value was provided for the flag '{s}'.\n", .{context.parsed_flag});
+                output_stream.printError("Error: No flag value was provided for the flag '{s}'.\n", .{context.parsed_flag}) catch {};
             },
             .NoSubcommandProvided => |context| {
-                error_log.log("Error: No subcommand provided for the command '{s}'.\n", .{context.command});
+                output_stream.printError("Error: No subcommand provided for the command '{s}'.\n", .{context.command}) catch {};
             },
             .SubcommandNotAddedToParentCommand => |context| {
-                error_log.log("Error: Subcommand '{s}' not added to the parent command '{s}'.\n", .{ context.subcommand, context.command });
+                output_stream.printError("Error: Subcommand '{s}' not added to the parent command '{s}'.\n", .{ context.subcommand, context.command }) catch {};
             },
             .SubCommandNameSameAsParent => |context| {
-                error_log.log("Error: Subcommand name '{s}' is same as the parent command name.\n", .{context.command});
+                output_stream.printError("Error: Subcommand name '{s}' is same as the parent command name.\n", .{context.command}) catch {};
             },
             .SubCommandAddedToExecutable => |context| {
-                error_log.log("Error: Subcommand '{s}' added to an executable command '{s}'.\n", .{ context.command, context.subcommand });
+                output_stream.printError("Error: Subcommand '{s}' added to an executable command '{s}'.\n", .{ context.command, context.subcommand }) catch {};
             },
             .ChildCommandAdded => |context| {
-                error_log.log("Error: Child command command '{s}' added to Cli-Craft.\n", .{context.command});
+                output_stream.printError("Error: Child command command '{s}' added to Cli-Craft.\n", .{context.command}) catch {};
             },
             .CommandNameAlreadyExists => |context| {
-                error_log.log("Error: Command name '{s}' already exists.\n", .{context.command});
+                output_stream.printError("Error: Command name '{s}' already exists.\n", .{context.command}) catch {};
             },
             .CommandAliasAlreadyExists => |context| {
-                error_log.log("Error: Command alias '{s}' already exists for the command '{s}'.\n", .{ context.alias, context.existing_command });
+                output_stream.printError("Error: Command alias '{s}' already exists for the command '{s}'.\n", .{ context.alias, context.existing_command }) catch {};
             },
             .MissingCommandNameToExecute => |_| {
-                error_log.log("Error: No command was provided to execute.\n", .{});
+                output_stream.printError("Error: No command was provided to execute.\n", .{}) catch {};
             },
             .CommandNotFound => |context| {
-                error_log.log("Error: Command '{s}' not found.\n", .{context.command});
+                output_stream.printError("Error: Command '{s}' not found.\n", .{context.command}) catch {};
             },
         };
     }
