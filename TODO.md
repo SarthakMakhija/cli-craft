@@ -18,6 +18,13 @@
     - [X] Pass a single ErrorLog
     - [ ] Revisit diagnostics across all the methods
     - [ ] Add argument specification errors in diagnostics
+- [ ] Print command
+    - [X] Add support for printing a single command
+    - [ ] Integrate printing
+    - [ ] Print command help on execution errors
+- [ ] Print commands
+    - [X] Add support for printing all commands
+    - [ ] Integrate printing
 - [X] Add support for local flags
 - [X] Add support for executing commands with local flags
 - [X] Add support for passing flags with default value
@@ -25,9 +32,9 @@
 - [X] Add support for executing commands with persistent flags
 - [X] Revalidate the design of FlagType and FlagValue
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
-- [ ] Ensure that the same flag can not be local and persistent
+- [X] Ensure that the same flag can not be local and persistent
 - [X] Revalidate the arguments of run function in a command
-- [ ] Revisit export of public APIs
+- [ ] Revisit export of public APIs + errors
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [X] An entrypoint of the cli-craft library
 - [ ] An examples folder
