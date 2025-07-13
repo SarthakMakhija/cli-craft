@@ -24,6 +24,8 @@ const prettytable = @import("prettytable");
 
 const BestDistance = 3;
 
+pub const HelpCommandName = "help";
+
 pub const CommandAddError = error{ ChildCommandAdded, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
 
 pub const CommandExecutionError = error{
@@ -155,6 +157,10 @@ pub const Command = struct {
                 return err;
             };
         }
+    }
+
+    fn isHelp(self: Command) bool {
+        return std.mem.eql(u8, self.name, HelpCommandName);
     }
 
     //TODO: print deprecated message if the command is deprecated
@@ -540,6 +546,28 @@ test "initialize an executable command with argument specification (2)" {
 
     try std.testing.expect(command.argument_specification != null);
     try std.testing.expectEqual(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5), command.argument_specification.?);
+}
+
+test "is help command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("help", "prints help", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    try std.testing.expect(command.isHelp());
+}
+
+test "is not a help command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = Command.init("HELP", "prints help", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    try std.testing.expect(command.isHelp() == false);
 }
 
 var add_command_result: u8 = undefined;
