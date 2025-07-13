@@ -67,7 +67,7 @@ pub const CommandHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.command.printAliases(&table, self.output_stream);
+        try self.command.printAliases(&table);
         try self.output_stream.print("\n", .{});
     }
 
@@ -91,7 +91,7 @@ pub const CommandHelp = struct {
 
                 table.setFormat(prettytable.FORMAT_CLEAN);
 
-                try commands.print(&table, self.output_stream, allocator);
+                try commands.print(&table, allocator);
                 try self.output_stream.print("\n", .{});
             },
             else => {},
@@ -154,7 +154,7 @@ pub const CommandsHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.commands.print(&table, self.output_stream, allocator);
+        try self.commands.print(&table, allocator);
         try self.output_stream.print("\n", .{});
     }
 
@@ -179,7 +179,13 @@ test "print command help for a command that has no subcommands" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var command = Command.init("stringer", "manipulate strings", runnable, output_stream, std.testing.allocator);
     defer command.deinit();
 
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
@@ -192,11 +198,7 @@ test "print command help for a command that has no subcommands" {
     try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
     try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-
-    var writer = buffer.writer();
-    var command_help = CommandHelp.init(command, OutputStream.initStdErrWriter(writer.any()));
+    var command_help = CommandHelp.init(command, output_stream);
 
     try command_help.printHelp(std.testing.allocator, &flags);
 
@@ -217,7 +219,12 @@ test "print command help for a command that has subcommands" {
         }
     }.run;
 
-    var command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var command = try Command.initParent("stringer", "manipulate strings", output_stream, std.testing.allocator);
     defer command.deinit();
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
@@ -234,11 +241,7 @@ test "print command help for a command that has subcommands" {
     try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
     try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-
-    var writer = buffer.writer();
-    var command_help = CommandHelp.init(command, OutputStream.initStdErrWriter(writer.any()));
+    var command_help = CommandHelp.init(command, output_stream);
 
     try command_help.printHelp(std.testing.allocator, &flags);
 
@@ -261,6 +264,12 @@ test "print all commands" {
         }
     }.run;
 
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
     var stringer_command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
 
@@ -268,17 +277,13 @@ test "print all commands" {
     reverse_command.addAliases(&[_][]const u8{"rev"});
 
     var diagnostics: Diagnostics = .{};
-    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
+    var commands = Commands.init(std.testing.allocator, output_stream);
     defer commands.deinit();
 
     try commands.add_disallow_child(stringer_command, &diagnostics);
     try commands.add_disallow_child(reverse_command, &diagnostics);
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-
-    var writer = buffer.writer();
-    var command_help = CommandsHelp.init(commands, null, OutputStream.initStdErrWriter(writer.any()));
+    var command_help = CommandsHelp.init(commands, null, output_stream);
 
     try command_help.printHelp(std.testing.allocator);
 
@@ -298,6 +303,12 @@ test "print all commands with application description" {
         }
     }.run;
 
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
     var stringer_command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
 
@@ -305,21 +316,17 @@ test "print all commands with application description" {
     reverse_command.addAliases(&[_][]const u8{"rev"});
 
     var diagnostics: Diagnostics = .{};
-    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
+    var commands = Commands.init(std.testing.allocator, output_stream);
     defer commands.deinit();
 
     try commands.add_disallow_child(stringer_command, &diagnostics);
     try commands.add_disallow_child(reverse_command, &diagnostics);
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-
-    var writer = buffer.writer();
-    var command_help = CommandsHelp.init(commands, "application for manipulatins strings", OutputStream.initStdErrWriter(writer.any()));
+    var command_help = CommandsHelp.init(commands, "application for manipulating strings", output_stream);
 
     try command_help.printHelp(std.testing.allocator);
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "application for manipulatins strings").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "application for manipulating strings").? >= 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);

@@ -117,16 +117,16 @@ pub const Command = struct {
         self.deprecated_message = deprecated_message;
     }
 
-    pub fn printAliases(self: Command, table: *prettytable.Table, output_stream: OutputStream) !void {
+    pub fn printAliases(self: Command, table: *prettytable.Table) !void {
         if (self.aliases) |aliases| {
             if (aliases.len > 0) {
-                try output_stream.print("Aliases:\n", .{});
+                try self.output_stream.print("Aliases:\n", .{});
                 for (aliases) |alias| {
                     try table.addRow(&[_][]const u8{alias});
                 }
             }
         }
-        try output_stream.printTable(table);
+        try self.output_stream.printTable(table);
     }
 
     pub fn deinit(self: *Command) void {
@@ -298,7 +298,7 @@ pub const Commands = struct {
         self.command_by_name.deinit();
     }
 
-    pub fn print(self: Commands, table: *prettytable.Table, output_stream: OutputStream, allocator: std.mem.Allocator) !void {
+    pub fn print(self: Commands, table: *prettytable.Table, allocator: std.mem.Allocator) !void {
         var column_values = std.ArrayList([]const u8).init(allocator);
         defer {
             for (column_values.items) |column_value| {
@@ -307,7 +307,7 @@ pub const Commands = struct {
             column_values.deinit();
         }
 
-        try output_stream.print("Available Commands:\n", .{});
+        try self.output_stream.print("Available Commands:\n", .{});
         var iterator = self.command_by_name.iterator();
 
         var aliases_str: []const u8 = "";
@@ -340,7 +340,7 @@ pub const Commands = struct {
             try table.addRow(&[_][]const u8{ command_name, aliases_str, command.description });
         }
 
-        try output_stream.printTable(table);
+        try self.output_stream.printTable(table);
     }
 
     fn add(self: *Commands, command: Command, allow_child: bool, diagnostics: *Diagnostics) !void {
@@ -725,22 +725,22 @@ test "print command aliases" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+
+    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initStdErrWriter(writer.any()), std.testing.allocator);
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
 
     try std.testing.expect(command.aliases != null);
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-    var writer = buffer.writer();
-
     var table = prettytable.Table.init(std.testing.allocator);
     defer table.deinit();
 
     table.setFormat(prettytable.FORMAT_CLEAN);
-    try command.printAliases(&table, OutputStream.initStdErrWriter(writer.any()));
+    try command.printAliases(&table);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);
@@ -1087,23 +1087,23 @@ test "print commands" {
     var add_command = Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     add_command.addAliases(&[_]CommandAlias{"sum"});
 
-    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+
+    var commands = Commands.init(std.testing.allocator, OutputStream.initStdErrWriter(writer.any()));
     defer commands.deinit();
 
     var diagnostics: Diagnostics = .{};
     try commands.add_disallow_child(command, &diagnostics);
     try commands.add_disallow_child(add_command, &diagnostics);
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-    var writer = buffer.writer();
-
     var table = prettytable.Table.init(std.testing.allocator);
     defer table.deinit();
 
     table.setFormat(prettytable.FORMAT_CLEAN);
 
-    try commands.print(&table, OutputStream.initStdErrWriter(writer.any()), std.testing.allocator);
+    try commands.print(&table, std.testing.allocator);
     const value = buffer.items;
 
     try std.testing.expect(std.mem.indexOf(u8, value, "stringer").? > 0);
