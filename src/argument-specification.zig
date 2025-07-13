@@ -1,3 +1,6 @@
+const std = @import("std");
+const OutputStream = @import("stream.zig").OutputStream;
+
 pub const ArgumentSpecificationError = error{
     ArgumentsNotEqualToZero,
     ArgumentsLessThanMinimum,
@@ -61,9 +64,21 @@ pub const ArgumentSpecification = union(enum) {
             },
         }
     }
-};
 
-const std = @import("std");
+    pub fn print(self: ArgumentSpecification, output_stream: OutputStream, allocator: std.mem.Allocator) !void {
+        try output_stream.print("Argument Specification:\n", .{});
+        const result: []const u8 = switch (self) {
+            .zero => try std.fmt.allocPrint(allocator, "  accepts zero arguments", .{}),
+            .minimum => |argument_count| try std.fmt.allocPrint(allocator, "  accepts minimum of {d} argument(s)", .{argument_count}),
+            .maximum => |argument_count| try std.fmt.allocPrint(allocator, "  accepts maximum of {d} argument(s)", .{argument_count}),
+            .exact => |argument_count| try std.fmt.allocPrint(allocator, "  accepts exactly {d} argument(s)", .{argument_count}),
+            .endExclusive => |range| try std.fmt.allocPrint(allocator, "  accepts at least {d} argument(s), but less than {d} argument(s)", .{ range.min, range.max }),
+            .endInclusive => |range| try std.fmt.allocPrint(allocator, "  accepts at least {d} argument(s) and at most {d} argument(s)", .{ range.min, range.max }),
+        };
+        defer allocator.free(result);
+        try output_stream.printAll(result);
+    }
+};
 
 test "arguments are not zero" {
     try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotEqualToZero, ArgumentSpecification.mustBeZero().validate(5));
@@ -95,4 +110,76 @@ test "arguments are not in end-inclusive range, given argument count is greater 
 
 test "arguments are not in end-inclusive range, given argument count is less than the minimum argument of the range" {
     try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(1));
+}
+
+test "print argument specification with zero arguments" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    const writer = buffer.writer().any();
+
+    const output_stream = OutputStream.initStdErrWriter(writer);
+    try ArgumentSpecification.mustBeZero().print(output_stream, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts zero arguments").? > 0);
+}
+
+test "print argument specification with minimum arguments" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    const writer = buffer.writer().any();
+
+    const output_stream = OutputStream.initStdErrWriter(writer);
+    try ArgumentSpecification.mustBeMinimum(2).print(output_stream, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts minimum of 2 argument(s)").? > 0);
+}
+
+test "print argument specification with maximum arguments" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    const writer = buffer.writer().any();
+
+    const output_stream = OutputStream.initStdErrWriter(writer);
+    try ArgumentSpecification.mustBeMaximum(3).print(output_stream, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts maximum of 3 argument(s)").? > 0);
+}
+
+test "print argument specification with exact arguments" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    const writer = buffer.writer().any();
+
+    const output_stream = OutputStream.initStdErrWriter(writer);
+    try ArgumentSpecification.mustBeExact(5).print(output_stream, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts exactly 5 argument(s)").? > 0);
+}
+
+test "print argument specification with arguments in end exclusive range" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    const writer = buffer.writer().any();
+
+    const output_stream = OutputStream.initStdErrWriter(writer);
+    try ArgumentSpecification.mustBeInEndExclusiveRange(3, 8).print(output_stream, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s), but less than 8 argument(s)").? > 0);
+}
+
+test "print argument specification with arguments in end inclusive range" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    const writer = buffer.writer().any();
+
+    const output_stream = OutputStream.initStdErrWriter(writer);
+    try ArgumentSpecification.mustBeInEndInclusiveRange(3, 8).print(output_stream, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s) and at most 8 argument(s)").? > 0);
 }

@@ -4,6 +4,7 @@ const prettytable = @import("prettytable");
 const Command = @import("commands.zig").Command;
 const CommandAlias = @import("commands.zig").CommandAlias;
 const CommandFnArguments = @import("commands.zig").CommandFnArguments;
+const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
 
 const Commands = @import("commands.zig").Commands;
 
@@ -32,6 +33,7 @@ pub const CommandHelp = struct {
         try self.write_usage(flags, allocator);
         try self.write_aliases();
         try self.write_flags(flags, allocator);
+        try self.write_argument_specification(allocator);
         try self.write_subcommands(allocator);
         try self.write_global_flags(allocator);
         try self.write_deprecated_message();
@@ -80,6 +82,13 @@ pub const CommandHelp = struct {
 
             try flags.print(&table, self.output_stream, allocator);
             try self.output_stream.print("\n", .{});
+        }
+    }
+
+    fn write_argument_specification(self: CommandHelp, allocator: std.mem.Allocator) !void {
+        if (self.command.argument_specification) |argument_specification| {
+            try argument_specification.print(self.output_stream, allocator);
+            try self.output_stream.print("\n\n", .{});
         }
     }
 
@@ -208,6 +217,42 @@ test "print command help for a command that has no subcommands" {
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "verbose").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "priority").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "timeout").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
+}
+
+test "print command help for a command with argument specification that has no subcommands" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var command = Command.init("stringer", "manipulate strings", runnable, output_stream, std.testing.allocator);
+    command.setArgumentSpecification(ArgumentSpecification.mustBeExact(1));
+    defer command.deinit();
+
+    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+
+    var diagnostics: Diagnostics = .{};
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
+
+    var command_help = CommandHelp.init(command, output_stream);
+    try command_help.printHelp(std.testing.allocator, &flags);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "verbose").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
 }
