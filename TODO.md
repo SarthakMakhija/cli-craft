@@ -25,6 +25,7 @@
 - [X] Add support for executing commands with persistent flags
 - [X] Revalidate the design of FlagType and FlagValue
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
+- [ ] Ensure that the same flag can not be local and persistent
 - [X] Revalidate the arguments of run function in a command
 - [ ] Revisit export of public APIs
 - [ ] Maybe, copy the command name and description or decide if they should be comptime

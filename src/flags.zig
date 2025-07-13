@@ -34,6 +34,14 @@ pub const Flags = struct {
     }
 
     pub fn addFlag(self: *Flags, flag: Flag, diagnostics: *Diagnostics) !void {
+        try self.ensureFlagDoesNotExist(flag, diagnostics);
+        try self.flag_by_name.put(flag.name, flag);
+        if (flag.short_name) |short_name| {
+            try self.short_name_to_long_name.put(short_name, flag.name);
+        }
+    }
+
+    pub fn ensureFlagDoesNotExist(self: Flags, flag: Flag, diagnostics: *Diagnostics) !void {
         if (self.flag_by_name.contains(flag.name)) {
             return diagnostics.reportAndFail(.{ .FlagNameAlreadyExists = .{ .flag_name = flag.name } });
         }
@@ -41,11 +49,6 @@ pub const Flags = struct {
             if (self.short_name_to_long_name.contains(short_name)) {
                 return diagnostics.reportAndFail(.{ .FlagShortNameAlreadyExists = .{ .short_name = short_name, .existing_flag_name = flag.name } });
             }
-        }
-
-        try self.flag_by_name.put(flag.name, flag);
-        if (flag.short_name) |short_name| {
-            try self.short_name_to_long_name.put(short_name, flag.name);
         }
     }
 
