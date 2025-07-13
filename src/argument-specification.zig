@@ -1,14 +1,8 @@
 const std = @import("std");
 const OutputStream = @import("stream.zig").OutputStream;
 
-pub const ArgumentSpecificationError = error{
-    ArgumentsNotEqualToZero,
-    ArgumentsLessThanMinimum,
-    ArgumentsGreaterThanMaximum,
-    ArgumentsNotMatchingExpected,
-    ArgumentsNotInEndExclusiveRange,
-    ArgumentsNotInEndInclusiveRange,
-};
+pub const ArgumentValidationError = error{ ArgumentsNotEqualToZero, ArgumentsLessThanMinimum, ArgumentsGreaterThanMaximum, ArgumentsNotMatchingExpected, ArgumentsNotInEndExclusiveRange, ArgumentsNotInEndInclusiveRange };
+pub const ArgumentSpecificationError = error{InvalidRange};
 
 pub const ArgumentSpecification = union(enum) {
     zero: usize,
@@ -34,33 +28,39 @@ pub const ArgumentSpecification = union(enum) {
         return .{ .exact = count };
     }
 
-    pub fn mustBeInEndExclusiveRange(min: usize, max: usize) ArgumentSpecification {
+    pub fn mustBeInEndExclusiveRange(min: usize, max: usize) !ArgumentSpecification {
+        if (max < min) {
+            return ArgumentSpecificationError.InvalidRange;
+        }
         return .{ .endExclusive = .{ .min = min, .max = max } };
     }
 
-    pub fn mustBeInEndInclusiveRange(min: usize, max: usize) ArgumentSpecification {
+    pub fn mustBeInEndInclusiveRange(min: usize, max: usize) !ArgumentSpecification {
+        if (max < min) {
+            return ArgumentSpecificationError.InvalidRange;
+        }
         return .{ .endInclusive = .{ .min = min, .max = max } };
     }
 
     pub fn validate(self: ArgumentSpecification, argument_count: usize) !void {
         switch (self) {
             .zero => if (argument_count != 0) {
-                return ArgumentSpecificationError.ArgumentsNotEqualToZero;
+                return ArgumentValidationError.ArgumentsNotEqualToZero;
             },
             .minimum => |expected_argument_count| if (argument_count < expected_argument_count) {
-                return ArgumentSpecificationError.ArgumentsLessThanMinimum;
+                return ArgumentValidationError.ArgumentsLessThanMinimum;
             },
             .maximum => |expected_argument_count| if (argument_count > expected_argument_count) {
-                return ArgumentSpecificationError.ArgumentsGreaterThanMaximum;
+                return ArgumentValidationError.ArgumentsGreaterThanMaximum;
             },
             .exact => |expected_argument_count| if (argument_count != expected_argument_count) {
-                return ArgumentSpecificationError.ArgumentsNotMatchingExpected;
+                return ArgumentValidationError.ArgumentsNotMatchingExpected;
             },
             .endExclusive => |range| if (argument_count < range.min or argument_count >= range.max) {
-                return ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange;
+                return ArgumentValidationError.ArgumentsNotInEndExclusiveRange;
             },
             .endInclusive => |range| if (argument_count < range.min or argument_count > range.max) {
-                return ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange;
+                return ArgumentValidationError.ArgumentsNotInEndInclusiveRange;
             },
         }
     }
@@ -81,35 +81,39 @@ pub const ArgumentSpecification = union(enum) {
 };
 
 test "arguments are not zero" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotEqualToZero, ArgumentSpecification.mustBeZero().validate(5));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsNotEqualToZero, ArgumentSpecification.mustBeZero().validate(5));
 }
 
 test "arguments are less than the minimum" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsLessThanMinimum, ArgumentSpecification.mustBeMinimum(10).validate(5));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsLessThanMinimum, ArgumentSpecification.mustBeMinimum(10).validate(5));
 }
 
 test "arguments are greater than the maximum" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, ArgumentSpecification.mustBeMaximum(3).validate(5));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsGreaterThanMaximum, ArgumentSpecification.mustBeMaximum(3).validate(5));
 }
 
 test "arguments are not matching the exact" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotMatchingExpected, ArgumentSpecification.mustBeExact(3).validate(2));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsNotMatchingExpected, ArgumentSpecification.mustBeExact(3).validate(2));
 }
 
 test "arguments are not in end-exclusive range, given argument count is equal to the maximum argument of the range" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 5).validate(5));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndExclusiveRange, (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(5));
 }
 
 test "arguments are not in end-exclusive range, given argument count is less than the minimum argument of the range" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndExclusiveRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 5).validate(1));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndExclusiveRange, (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(1));
 }
 
 test "arguments are not in end-inclusive range, given argument count is greater than the maximum argument of the range" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(6));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndInclusiveRange, (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(6));
 }
 
 test "arguments are not in end-inclusive range, given argument count is less than the minimum argument of the range" {
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsNotInEndInclusiveRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 5).validate(1));
+    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndInclusiveRange, (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(1));
+}
+
+test "invalid argument range" {
+    try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 1));
 }
 
 test "print argument specification with zero arguments" {
@@ -167,7 +171,7 @@ test "print argument specification with arguments in end exclusive range" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try ArgumentSpecification.mustBeInEndExclusiveRange(3, 8).print(output_stream, std.testing.allocator);
+    try (try ArgumentSpecification.mustBeInEndExclusiveRange(3, 8)).print(output_stream, std.testing.allocator);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s), but less than 8 argument(s)").? > 0);
 }
@@ -179,7 +183,7 @@ test "print argument specification with arguments in end inclusive range" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try ArgumentSpecification.mustBeInEndInclusiveRange(3, 8).print(output_stream, std.testing.allocator);
+    try (try ArgumentSpecification.mustBeInEndInclusiveRange(3, 8)).print(output_stream, std.testing.allocator);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s) and at most 8 argument(s)").? > 0);
 }

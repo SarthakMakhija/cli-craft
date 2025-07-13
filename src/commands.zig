@@ -540,7 +540,7 @@ test "initialize an executable command with argument specification (2)" {
     }.run;
 
     var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.setArgumentSpecification(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
+    command.setArgumentSpecification(try ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
 
     defer command.deinit();
 
@@ -962,7 +962,7 @@ test "execute a command with child command passing flags and arguments with a lo
 }
 
 const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
-const ArgumentSpecificationError = @import("argument-specification.zig").ArgumentSpecificationError;
+const ArgumentSpecificationError = @import("argument-specification.zig").ArgumentValidationError;
 
 test "attempt to add a command which has a parent" {
     const runnable = struct {
