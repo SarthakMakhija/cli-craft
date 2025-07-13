@@ -5,6 +5,8 @@ const Command = @import("commands.zig").Command;
 const CommandAlias = @import("commands.zig").CommandAlias;
 const CommandFnArguments = @import("commands.zig").CommandFnArguments;
 
+const Commands = @import("commands.zig").Commands;
+
 const Flags = @import("flags.zig").Flags;
 const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
@@ -103,7 +105,7 @@ pub const CommandHelp = struct {
 
         table.setFormat(prettytable.FORMAT_CLEAN);
 
-        try self.writer.writeAll("Global options:\n");
+        try self.writer.writeAll("Global flags:\n");
         try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
 
         try table.print(self.writer);
@@ -114,6 +116,60 @@ pub const CommandHelp = struct {
         if (self.command.deprecated_message) |msg| {
             try self.writer.print("Deprecated: {s}\n\n", .{msg});
         }
+    }
+};
+
+pub const CommandsHelp = struct {
+    commands: Commands,
+    writer: std.io.AnyWriter,
+    app_description: ?[]const u8,
+
+    pub fn init(commands: Commands, app_description: ?[]const u8, writer: std.io.AnyWriter) CommandsHelp {
+        return .{
+            .commands = commands,
+            .writer = writer,
+            .app_description = app_description,
+        };
+    }
+
+    pub fn printHelp(self: CommandsHelp, allocator: std.mem.Allocator) !void {
+        if (self.app_description) |app_description| {
+            try self.writer.print("{s}\n", .{app_description});
+        }
+        try self.write_usage(allocator);
+        try self.write_allcommands(allocator);
+        try self.write_global_flags(allocator);
+    }
+
+    fn write_usage(self: CommandsHelp, allocator: std.mem.Allocator) !void {
+        var usage: std.ArrayList(u8) = std.ArrayList(u8).init(allocator);
+        defer usage.deinit();
+
+        try usage.writer().print("Usage: [app-name] [command] [flags] [arguments]", .{});
+        try self.writer.print("\n", .{});
+    }
+
+    fn write_allcommands(self: CommandsHelp, allocator: std.mem.Allocator) !void {
+        var table = prettytable.Table.init(std.testing.allocator);
+        defer table.deinit();
+
+        table.setFormat(prettytable.FORMAT_CLEAN);
+
+        try self.commands.print(&table, allocator, self.writer);
+        try self.writer.print("\n", .{});
+    }
+
+    fn write_global_flags(self: CommandsHelp, allocator: std.mem.Allocator) !void {
+        var table = prettytable.Table.init(allocator);
+        defer table.deinit();
+
+        table.setFormat(prettytable.FORMAT_CLEAN);
+
+        try self.writer.writeAll("Global flags:\n");
+        try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
+
+        try table.print(self.writer);
+        try self.writer.print("\n", .{});
     }
 };
 
@@ -195,6 +251,81 @@ test "print command help for a command that has subcommands" {
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "verbose").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "priority").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "timeout").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
+}
+
+test "print all commands" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var stringer_command = try Command.initParent("stringer", "manipulate strings", ErrorLog.initNoOperation(), std.testing.allocator);
+    stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
+
+    var reverse_command = Command.init("reverse", "reverse strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    reverse_command.addAliases(&[_][]const u8{"rev"});
+
+    var diagnostics: Diagnostics = .{};
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
+    defer commands.deinit();
+
+    try commands.add_disallow_child(stringer_command, &diagnostics);
+    try commands.add_disallow_child(reverse_command, &diagnostics);
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    var command_help = CommandsHelp.init(commands, null, writer.any());
+
+    try command_help.printHelp(std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "reverse").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "rev").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
+}
+
+test "print all commands with application description" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var stringer_command = try Command.initParent("stringer", "manipulate strings", ErrorLog.initNoOperation(), std.testing.allocator);
+    stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
+
+    var reverse_command = Command.init("reverse", "reverse strings", runnable, ErrorLog.initNoOperation(), std.testing.allocator);
+    reverse_command.addAliases(&[_][]const u8{"rev"});
+
+    var diagnostics: Diagnostics = .{};
+    var commands = Commands.init(std.testing.allocator, ErrorLog.initNoOperation());
+    defer commands.deinit();
+
+    try commands.add_disallow_child(stringer_command, &diagnostics);
+    try commands.add_disallow_child(reverse_command, &diagnostics);
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    var command_help = CommandsHelp.init(commands, "application for manipulatins strings", writer.any());
+
+    try command_help.printHelp(std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "application for manipulatins strings").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "reverse").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "rev").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
 }
