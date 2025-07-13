@@ -29,7 +29,7 @@ const ErrorLog = @import("log.zig").ErrorLog;
 pub const GlobalOptions = struct {
     allocator: std.mem.Allocator,
     error_options: struct {
-        writer: std.fs.File.Writer,
+        writer: std.io.AnyWriter,
     },
 };
 
@@ -102,7 +102,7 @@ var get_command_result: []const u8 = undefined;
 
 test "execute an executable command with arguments" {
     var cliCraft = CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
-        .writer = std.io.getStdErr().writer(),
+        .writer = std.io.getStdErr().writer().any(),
     } });
 
     defer cliCraft.deinit();
@@ -125,7 +125,7 @@ test "execute an executable command with arguments" {
 
 test "execute an executable command with arguments and flags" {
     var cliCraft = CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
-        .writer = std.io.getStdErr().writer(),
+        .writer = std.io.getStdErr().writer().any(),
     } });
 
     defer cliCraft.deinit();
@@ -157,7 +157,7 @@ test "execute an executable command with arguments and flags" {
 
 test "execute a command with subcommand" {
     var cliCraft = CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
-        .writer = std.io.getStdErr().writer(),
+        .writer = std.io.getStdErr().writer().any(),
     } });
 
     defer cliCraft.deinit();

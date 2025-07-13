@@ -1,9 +1,9 @@
 const std = @import("std");
 
 pub const ErrorLog = struct {
-    writer: ?std.fs.File.Writer,
+    writer: ?std.io.AnyWriter,
 
-    pub fn init(writer: std.fs.File.Writer) ErrorLog {
+    pub fn init(writer: std.io.AnyWriter) ErrorLog {
         return .{ .writer = writer };
     }
 
