@@ -29,7 +29,7 @@ pub const ArgumentSpecification = union(enum) {
     }
 
     pub fn mustBeInEndExclusiveRange(min: usize, max: usize) !ArgumentSpecification {
-        if (max < min) {
+        if (max <= min) {
             return ArgumentSpecificationError.InvalidRange;
         }
         return .{ .endExclusive = .{ .min = min, .max = max } };
@@ -112,7 +112,15 @@ test "arguments are not in end-inclusive range, given argument count is less tha
     try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndInclusiveRange, (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(1));
 }
 
-test "invalid argument range" {
+test "invalid argument range for end exclusive range 1" {
+    try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 1));
+}
+
+test "invalid argument range for end exclusive range 2" {
+    try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 2));
+}
+
+test "invalid argument range for end inclusive range" {
     try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 1));
 }
 
