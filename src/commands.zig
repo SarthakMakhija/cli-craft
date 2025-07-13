@@ -182,11 +182,11 @@ pub const Command = struct {
         var parsed_arguments = std.ArrayList([]const u8).init(allocator);
         defer parsed_arguments.deinit();
 
+        var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
+        try command_line_parser.parse(&parsed_flags, &parsed_arguments, if (self.action == .executable) false else true);
+
         switch (self.action) {
             .executable => |executable_fn| {
-                var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
-                try command_line_parser.parse(&parsed_flags, &parsed_arguments, false);
-
                 if (self.argument_specification) |argument_specification| {
                     try argument_specification.validate(parsed_arguments.items.len);
                 }
@@ -195,9 +195,6 @@ pub const Command = struct {
                 return executable_fn(parsed_flags, parsed_arguments.items);
             },
             .subcommands => |sub_commands| {
-                var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
-                try command_line_parser.parse(&parsed_flags, &parsed_arguments, true);
-
                 const sub_command = try self.get_subcommand(&parsed_arguments, sub_commands, diagnostics);
 
                 var child_flags = Flags.init(allocator);
