@@ -31,6 +31,7 @@
 - [X] Add support for persistent flags
 - [X] Add support for executing commands with persistent flags
 - [X] Revalidate the design of FlagType and FlagValue
+- [X] Refactor CommandLineParser to build a state machine
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
 - [X] Ensure that the same flag can not be local and persistent
 - [X] Revalidate the arguments of run function in a command
