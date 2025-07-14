@@ -180,7 +180,7 @@ test "print command help for a command that has no subcommands" {
     var writer = buffer.writer();
     const output_stream = OutputStream.initStdErrWriter(writer.any());
 
-    var command = Command.init("stringer", "manipulate strings", runnable, output_stream, std.testing.allocator);
+    var command = try Command.init("stringer", "manipulate strings", runnable, output_stream, std.testing.allocator);
     defer command.deinit();
 
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
@@ -221,7 +221,7 @@ test "print command help for a command with argument specification that has no s
     var writer = buffer.writer();
     const output_stream = OutputStream.initStdErrWriter(writer.any());
 
-    var command = Command.init("stringer", "manipulate strings", runnable, output_stream, std.testing.allocator);
+    var command = try Command.init("stringer", "manipulate strings", runnable, output_stream, std.testing.allocator);
     command.setArgumentSpecification(ArgumentSpecification.mustBeExact(1));
     defer command.deinit();
 
@@ -261,7 +261,7 @@ test "print command help for a command that has subcommands" {
     defer command.deinit();
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
-    var sub_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var sub_command = try Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
 
     try command.addSubcommand(&sub_command);
 
@@ -306,7 +306,7 @@ test "print all commands" {
     var stringer_command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
 
-    var reverse_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var reverse_command = try Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     reverse_command.addAliases(&[_][]const u8{"rev"});
 
     var diagnostics: Diagnostics = .{};
@@ -345,7 +345,7 @@ test "print all commands with application description" {
     var stringer_command = try Command.initParent("stringer", "manipulate strings", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     stringer_command.addAliases(&[_][]const u8{ "str", "strm" });
 
-    var reverse_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var reverse_command = try Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     reverse_command.addAliases(&[_][]const u8{"rev"});
 
     var diagnostics: Diagnostics = .{};

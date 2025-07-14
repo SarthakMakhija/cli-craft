@@ -51,8 +51,8 @@ pub const CliCraft = struct {
         return .{ .options = options, .commands = commands, .output_stream = output_stream };
     }
 
-    pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) Command {
-        return Command.init(name, description, executable, self.output_stream, self.options.allocator);
+    pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) !Command {
+        return try Command.init(name, description, executable, self.output_stream, self.options.allocator);
     }
 
     pub fn newParentCommand(self: CliCraft, name: []const u8, description: []const u8) !Command {
@@ -60,7 +60,7 @@ pub const CliCraft = struct {
     }
 
     pub fn addExecutableCommand(self: *CliCraft, name: []const u8, description: []const u8, executable: CommandFn) !void {
-        try self.addCommand(self.newExecutableCommand(name, description, executable));
+        try self.addCommand(try self.newExecutableCommand(name, description, executable));
     }
 
     pub fn addParentCommand(self: *CliCraft, name: []const u8, description: []const u8) !void {
@@ -156,7 +156,7 @@ test "execute an executable command with arguments and flags" {
         }
     }.run;
 
-    var command = cliCraft.newExecutableCommand("add", "adds numbers", runnable);
+    var command = try cliCraft.newExecutableCommand("add", "adds numbers", runnable);
     try command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
     try command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
@@ -182,7 +182,7 @@ test "execute a command with subcommand" {
         }
     }.run;
 
-    var get_command = cliCraft.newExecutableCommand("get", "get objects", runnable);
+    var get_command = try cliCraft.newExecutableCommand("get", "get objects", runnable);
     var kubectl_command = try cliCraft.newParentCommand("kubectl", "kubernetes entry");
     try kubectl_command.addSubcommand(&get_command);
 

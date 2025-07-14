@@ -65,7 +65,7 @@ test "add a sub-command" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
 
     var command_action = try CommandAction.initSubcommands(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer command_action.deinit();
@@ -89,7 +89,7 @@ test "attempt to initialize a parent command with a subcommand having the same n
     var command_action = try CommandAction.initSubcommands(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer command_action.deinit();
 
-    var get_command = Command.init("kubectl", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var get_command = try Command.init("kubectl", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer get_command.deinit();
 
     var diagnostics: Diagnostics = .{};
@@ -106,7 +106,7 @@ test "attempt to add a sub-command to an executable command" {
         }
     }.run;
 
-    var command = Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
 
     var command_action = CommandAction.initExecutable(runnable);
