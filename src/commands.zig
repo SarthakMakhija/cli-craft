@@ -187,8 +187,8 @@ pub const Command = struct {
         try command_line_parser.parse(&parsed_flags, &parsed_arguments, if (self.action == .executable) false else true);
 
         if (parsed_flags.containsHelp()) {
-            const command_help = CommandHelp.init(self, self.output_stream);
-            return try command_help.printHelp(self.allocator, &all_flags);
+            const help = CommandHelp.init(self, self.output_stream);
+            return try help.printHelp(self.allocator, &all_flags);
         }
 
         switch (self.action) {
@@ -291,13 +291,12 @@ pub const Commands = struct {
         return null;
     }
 
-    pub fn execute(self: Commands, arguments: *Arguments, diagnostics: *Diagnostics) !void {
+    pub fn execute(self: Commands, application_description: ?[]const u8, arguments: *Arguments, diagnostics: *Diagnostics) !void {
         const command_name_or_alias = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
         const command = self.get(command_name_or_alias) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name_or_alias } });
 
-        //TODO: pass app description.
         if (command.isHelp()) {
-            const help = CommandsHelp.init(self, null, self.output_stream);
+            const help = CommandsHelp.init(self, application_description, self.output_stream);
             try help.printHelp(self.allocator);
         }
         return try command.execute(arguments, diagnostics, self.allocator);
@@ -1234,7 +1233,7 @@ test "execute a command" {
     try commands.add_disallow_child(command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5" });
-    try commands.execute(&arguments, &diagnostics);
+    try commands.execute(null, &arguments, &diagnostics);
 
     try std.testing.expectEqual(7, add_command_result);
 }
@@ -1268,9 +1267,10 @@ test "execute help command" {
     try commands.add_disallow_child(subtract_command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{"help"});
-    try commands.execute(&arguments, &diagnostics);
+    try commands.execute("maths application", &arguments, &diagnostics);
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "maths application").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "plus").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "sub").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "minus").? > 0);
@@ -1298,7 +1298,7 @@ test "execute a command with a subcommand by adding the parent command" {
     try commands.add_disallow_child(kubectl_command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
-    try commands.execute(&arguments, &diagnostics);
+    try commands.execute(null, &arguments, &diagnostics);
 
     try std.testing.expectEqualStrings("pods", get_command_result);
 }
@@ -1320,7 +1320,7 @@ test "attempt to execute a command with an unregistered command from command lin
     try commands.add_disallow_child(command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "subtract", "2", "4" });
-    try std.testing.expectError(CommandExecutionError.CommandNotFound, commands.execute(&arguments, &diagnostics));
+    try std.testing.expectError(CommandExecutionError.CommandNotFound, commands.execute(null, &arguments, &diagnostics));
 
     const diagnostics_type = diagnostics.diagnostics_type.?.CommandNotFound;
     try std.testing.expectEqualStrings("subtract", diagnostics_type.command);
@@ -1343,5 +1343,5 @@ test "attempt to execute a command with mismatch in argument specification" {
     try commands.add_disallow_child(command, &diagnostics);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "6", "3" });
-    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, commands.execute(&arguments, &diagnostics));
+    try std.testing.expectError(ArgumentSpecificationError.ArgumentsGreaterThanMaximum, commands.execute(null, &arguments, &diagnostics));
 }

@@ -28,6 +28,7 @@ const Arguments = @import("arguments.zig").Arguments;
 const OutputStream = @import("stream.zig").OutputStream;
 
 pub const GlobalOptions = struct {
+    application_description: ?[]const u8 = null,
     allocator: std.mem.Allocator,
     error_options: struct {
         writer: std.io.AnyWriter,
@@ -79,7 +80,7 @@ pub const CliCraft = struct {
     pub fn execute(self: *CliCraft) !void {
         var diagnostics: Diagnostics = .{};
 
-        self.commands.execute(Arguments.init(), &diagnostics) catch |err| {
+        self.commands.execute(self.options.application_description, Arguments.init(), &diagnostics) catch |err| {
             diagnostics.log_using(self.output_stream);
             return err;
         };
@@ -89,7 +90,7 @@ pub const CliCraft = struct {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
 
-        self.commands.execute(&command_line_arguments, &diagnostics) catch |err| {
+        self.commands.execute(self.options.application_description, &command_line_arguments, &diagnostics) catch |err| {
             diagnostics.log_using(self.output_stream);
             return err;
         };
