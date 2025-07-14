@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const CommandAction = @import("command-action.zig").CommandAction;
 const Arguments = @import("arguments.zig").Arguments;
 const Flags = @import("flags.zig").Flags;
@@ -13,16 +15,9 @@ const ParsedFlag = @import("flags.zig").ParsedFlag;
 const CommandLineParser = @import("command-line-parser.zig").CommandLineParser;
 const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
 
-const StringDistance = @import("string-distance.zig").StringDistance;
-
 const OutputStream = @import("stream.zig").OutputStream;
 
-const std = @import("std");
-const Sort = std.sort;
-
 const prettytable = @import("prettytable");
-
-const BestDistance = 3;
 
 pub const HelpCommandName = "help";
 
@@ -34,11 +29,6 @@ pub const CommandExecutionError = error{
 };
 
 pub const CommandErrors = CommandAddError || CommandExecutionError || CommandParsingError;
-
-pub const CommandSuggestion = struct {
-    name: []const u8,
-    distance: u16,
-};
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
@@ -356,29 +346,6 @@ pub const Commands = struct {
                 try self.command_name_by_alias.put(alias, command.name);
             }
         }
-    }
-
-    fn suggestions_for(self: Commands, name: []const u8) !std.ArrayList(CommandSuggestion) {
-        var suggestions = std.ArrayList(CommandSuggestion).init(self.allocator);
-        var command_names = self.command_by_name.keyIterator();
-
-        while (command_names.next()) |command_name| {
-            const distance = try StringDistance.levenshtein(self.allocator, name, command_name.*);
-            if (distance <= BestDistance) {
-                try suggestions.append(.{
-                    .name = command_name.*,
-                    .distance = distance,
-                });
-            }
-        }
-
-        std.mem.sort(CommandSuggestion, suggestions.items, {}, struct {
-            fn compare(_: void, first: CommandSuggestion, second: CommandSuggestion) bool {
-                return first.distance < second.distance;
-            }
-        }.compare);
-
-        return suggestions;
     }
 
     fn ensureCommandDoesNotExist(self: Commands, command: Command, diagnostics: *Diagnostics) !void {
@@ -1159,52 +1126,6 @@ test "attempt to add a command with an existing alias" {
     const diagnostics_type = diagnostics.diagnostics_type.?.CommandAliasAlreadyExists;
     try std.testing.expectEqualStrings("str", diagnostics_type.alias);
     try std.testing.expectEqualStrings("stringer", diagnostics_type.existing_command);
-}
-
-test "get suggestions for a command (1)" {
-    const runnable = struct {
-        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
-            return;
-        }
-    }.run;
-
-    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
-    defer commands.deinit();
-
-    var diagnostics: Diagnostics = .{};
-    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator), &diagnostics);
-    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator), &diagnostics);
-    try commands.add_disallow_child(Command.init("strm", "short for stringer", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator), &diagnostics);
-
-    var suggestions = try commands.suggestions_for("strn");
-    defer suggestions.deinit();
-
-    try std.testing.expectEqual(2, suggestions.items.len);
-    try std.testing.expectEqualStrings("str", suggestions.pop().?.name);
-    try std.testing.expectEqualStrings("strm", suggestions.pop().?.name);
-}
-
-test "get suggestions for a command (2)" {
-    const runnable = struct {
-        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
-            return;
-        }
-    }.run;
-
-    var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
-    defer commands.deinit();
-
-    var diagnostics: Diagnostics = .{};
-    try commands.add_disallow_child(Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator), &diagnostics);
-    try commands.add_disallow_child(Command.init("str", "short for stringer", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator), &diagnostics);
-    try commands.add_disallow_child(Command.init("zig", "language", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator), &diagnostics);
-
-    var suggestions = try commands.suggestions_for("string");
-    defer suggestions.deinit();
-
-    try std.testing.expectEqual(2, suggestions.items.len);
-    try std.testing.expectEqualStrings("str", suggestions.pop().?.name);
-    try std.testing.expectEqualStrings("stringer", suggestions.pop().?.name);
 }
 
 test "execute a command" {
