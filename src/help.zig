@@ -35,7 +35,6 @@ pub const CommandHelp = struct {
         try self.write_flags(flags, allocator);
         try self.write_argument_specification(allocator);
         try self.write_subcommands(allocator);
-        try self.write_global_flags(allocator);
         try self.write_deprecated_message();
     }
 
@@ -105,19 +104,6 @@ pub const CommandHelp = struct {
             },
             else => {},
         }
-    }
-
-    fn write_global_flags(self: CommandHelp, allocator: std.mem.Allocator) !void {
-        var table = prettytable.Table.init(allocator);
-        defer table.deinit();
-
-        table.setFormat(prettytable.FORMAT_CLEAN);
-
-        try self.output_stream.printAll("Global flags:\n");
-        try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
-
-        try self.output_stream.printTable(&table);
-        try self.output_stream.print("\n\n", .{});
     }
 
     fn write_deprecated_message(self: CommandHelp) !void {
@@ -206,6 +192,7 @@ test "print command help for a command that has no subcommands" {
     try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
     try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
     try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
+    try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
 
@@ -245,6 +232,7 @@ test "print command help for a command with argument specification that has no s
     defer flags.deinit();
 
     try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
+    try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
     try command_help.printHelp(std.testing.allocator, &flags);
@@ -274,7 +262,6 @@ test "print command help for a command that has subcommands" {
     command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     var sub_command = Command.init("reverse", "reverse strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    defer sub_command.deinit();
 
     try command.addSubcommand(&sub_command);
 
@@ -285,6 +272,7 @@ test "print command help for a command that has subcommands" {
     try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
     try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
     try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
+    try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
 
@@ -328,9 +316,9 @@ test "print all commands" {
     try commands.add_disallow_child(stringer_command, &diagnostics);
     try commands.add_disallow_child(reverse_command, &diagnostics);
 
-    var command_help = CommandsHelp.init(commands, null, output_stream);
+    var commands_help = CommandsHelp.init(commands, null, output_stream);
 
-    try command_help.printHelp(std.testing.allocator);
+    try commands_help.printHelp(std.testing.allocator);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? >= 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
@@ -367,9 +355,9 @@ test "print all commands with application description" {
     try commands.add_disallow_child(stringer_command, &diagnostics);
     try commands.add_disallow_child(reverse_command, &diagnostics);
 
-    var command_help = CommandsHelp.init(commands, "application for manipulating strings", output_stream);
+    var commands_help = CommandsHelp.init(commands, "application for manipulating strings", output_stream);
 
-    try command_help.printHelp(std.testing.allocator);
+    try commands_help.printHelp(std.testing.allocator);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "application for manipulating strings").? >= 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? > 0);

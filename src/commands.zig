@@ -50,22 +50,30 @@ pub const Command = struct {
     output_stream: OutputStream,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn, output_stream: OutputStream, allocator: std.mem.Allocator) Command {
+        var local_flags = Flags.init(allocator);
+        local_flags.addHelp() catch {};
+
         return .{
             .name = name,
             .description = description,
             .allocator = allocator,
             .action = CommandAction.initExecutable(executable),
             .output_stream = output_stream,
+            .local_flags = local_flags,
         };
     }
 
     pub fn initParent(name: []const u8, description: []const u8, output_stream: OutputStream, allocator: std.mem.Allocator) !Command {
+        var local_flags = Flags.init(allocator);
+        local_flags.addHelp() catch {};
+
         return .{
             .name = name,
             .description = description,
             .allocator = allocator,
             .action = try CommandAction.initSubcommands(allocator, output_stream),
             .output_stream = output_stream,
+            .local_flags = local_flags,
         };
     }
 
@@ -439,7 +447,7 @@ test "initialize a command without any flags" {
     var command = Command.init("test", "test command", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
 
-    try std.testing.expect(command.local_flags == null);
+    try std.testing.expect(command.local_flags.?.get("help") != null);
 }
 
 test "initialize an executable command with an alias" {
@@ -540,6 +548,8 @@ test "is help command" {
     }.run;
 
     var command = Command.init("help", "prints help", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer command.deinit();
+
     try std.testing.expect(command.isHelp());
 }
 
@@ -551,6 +561,8 @@ test "is not a help command" {
     }.run;
 
     var command = Command.init("HELP", "prints help", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer command.deinit();
+
     try std.testing.expect(command.isHelp() == false);
 }
 
@@ -593,8 +605,6 @@ test "execute a command with a subcommand" {
     defer kubectl_command.deinit();
 
     var get_command = Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    defer get_command.deinit();
-
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
@@ -617,8 +627,6 @@ test "attempt to execute a command with a subcommand but with incorrect subcomma
     defer kubectl_command.deinit();
 
     var get_command = Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    defer get_command.deinit();
-
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "delete" });
@@ -1111,7 +1119,9 @@ test "attempt to add a command with an existing name" {
 
     try commands.add_disallow_child(command, &diagnostics);
 
-    const another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var another_command = Command.init("stringer", "manipulate strings with a blazing fast speed", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer another_command.deinit();
+
     try std.testing.expectError(CommandAddError.CommandNameAlreadyExists, commands.add_disallow_child(another_command, &diagnostics));
 
     const diagnostics_type = diagnostics.diagnostics_type.?.CommandNameAlreadyExists;

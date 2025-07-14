@@ -47,6 +47,11 @@ pub const Flags = struct {
         }
     }
 
+    pub fn addHelp(self: *Flags) !void {
+        try self.flag_by_name.put(HelpFlagName, Flag.builder(HelpFlagName, "Show help for command", FlagType.boolean).build());
+        try self.short_name_to_long_name.put(HelpFlagShortName[0], HelpFlagName);
+    }
+
     pub fn ensureFlagDoesNotExist(self: Flags, flag: Flag, diagnostics: *Diagnostics) !void {
         if (self.flag_by_name.contains(flag.name)) {
             return diagnostics.reportAndFail(.{ .FlagNameAlreadyExists = .{ .flag_name = flag.name } });
@@ -586,6 +591,16 @@ test "print flags" {
     try std.testing.expect(std.mem.indexOf(u8, value, "--namespace").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, value, "-n").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, value, "(string, default: cli-craft)").? > 0);
+}
+
+test "add help flag" {
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    try flags.addHelp();
+
+    try std.testing.expectEqualStrings("help", flags.get("help").?.name);
+    try std.testing.expectEqualStrings("help", flags.get("h").?.name);
 }
 
 test "add a flag and check its existence by short name" {
