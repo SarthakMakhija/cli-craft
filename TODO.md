@@ -23,7 +23,7 @@
     - [ ] Print command help on execution errors
 - [ ] Print commands
     - [X] Add support for printing all commands
-    - [ ] Integrate printing
+    - [X] Integrate printing
 - [X] Add support for local flags
 - [X] Add support for executing commands with local flags
 - [X] Add support for passing flags with default value

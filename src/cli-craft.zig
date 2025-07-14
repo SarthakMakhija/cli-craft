@@ -42,9 +42,13 @@ pub const CliCraft = struct {
     commands: Commands,
     output_stream: OutputStream,
 
-    pub fn init(options: GlobalOptions) CliCraft {
+    pub fn init(options: GlobalOptions) !CliCraft {
         const output_stream = OutputStream.init(options.output_options.writer, options.error_options.writer);
-        return .{ .options = options, .commands = Commands.init(options.allocator, output_stream), .output_stream = output_stream };
+
+        var commands = Commands.init(options.allocator, output_stream);
+        try commands.addHelp();
+
+        return .{ .options = options, .commands = commands, .output_stream = output_stream };
     }
 
     pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) Command {
@@ -105,7 +109,7 @@ var add_command_result: u8 = undefined;
 var get_command_result: []const u8 = undefined;
 
 test "execute an executable command with arguments" {
-    var cliCraft = CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
+    var cliCraft = try CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
         .writer = std.io.getStdErr().writer().any(),
     }, .output_options = .{
         .writer = std.io.getStdOut().writer().any(),
@@ -130,7 +134,7 @@ test "execute an executable command with arguments" {
 }
 
 test "execute an executable command with arguments and flags" {
-    var cliCraft = CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
+    var cliCraft = try CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
         .writer = std.io.getStdErr().writer().any(),
     }, .output_options = .{
         .writer = std.io.getStdOut().writer().any(),
@@ -164,7 +168,7 @@ test "execute an executable command with arguments and flags" {
 }
 
 test "execute a command with subcommand" {
-    var cliCraft = CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
+    var cliCraft = try CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
         .writer = std.io.getStdErr().writer().any(),
     }, .output_options = .{
         .writer = std.io.getStdOut().writer().any(),

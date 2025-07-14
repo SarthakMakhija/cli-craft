@@ -15,6 +15,7 @@ const ParsedFlag = @import("flags.zig").ParsedFlag;
 const CommandLineParser = @import("command-line-parser.zig").CommandLineParser;
 const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
 
+const CommandsHelp = @import("help.zig").CommandsHelp;
 const OutputStream = @import("stream.zig").OutputStream;
 
 const prettytable = @import("prettytable");
@@ -254,6 +255,17 @@ pub const Commands = struct {
         };
     }
 
+    pub fn addHelp(self: *Commands) !void {
+        const runnable = struct {
+            pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+                return;
+            }
+        }.run;
+
+        const command = Command.init("help", "Displays system help", runnable, self.output_stream, self.allocator);
+        try self.command_by_name.put("help", command);
+    }
+
     pub fn add_allow_child(self: *Commands, command: Command, diagnostics: *Diagnostics) !void {
         return try self.add(command, true, diagnostics);
     }
@@ -276,6 +288,11 @@ pub const Commands = struct {
         const command_name_or_alias = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
         const command = self.get(command_name_or_alias) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name_or_alias } });
 
+        //TODO: pass app description.
+        if (command.isHelp()) {
+            const help = CommandsHelp.init(self, null, self.output_stream);
+            try help.printHelp(self.allocator);
+        }
         return try command.execute(arguments, diagnostics, self.allocator);
     }
 
@@ -1151,6 +1168,45 @@ test "execute a command" {
     try commands.execute(&arguments, &diagnostics);
 
     try std.testing.expectEqual(7, add_command_result);
+}
+
+test "execute help command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var add_command = Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    add_command.addAliases(&[_][]const u8{"plus"});
+
+    var subtract_command = Command.init("sub", "subtract numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    subtract_command.addAliases(&[_][]const u8{"minus"});
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var commands = Commands.init(std.testing.allocator, output_stream);
+    defer commands.deinit();
+
+    try commands.addHelp();
+
+    var diagnostics: Diagnostics = .{};
+    try commands.add_disallow_child(add_command, &diagnostics);
+    try commands.add_disallow_child(subtract_command, &diagnostics);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{"help"});
+    try commands.execute(&arguments, &diagnostics);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "plus").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "sub").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "minus").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
 }
 
 test "execute a command with a subcommand by adding the parent command" {
