@@ -45,7 +45,7 @@ pub const Command = struct {
     argument_specification: ?ArgumentSpecification = null,
     deprecated_message: ?[]const u8 = null,
     has_parent: bool = false,
-    local_flags: ?Flags = null,
+    local_flags: Flags,
     persistent_flags: ?Flags = null,
     output_stream: OutputStream,
 
@@ -95,21 +95,20 @@ pub const Command = struct {
 
     pub fn addFlag(self: *Command, flag: Flag) !void {
         var diagnostics: Diagnostics = .{};
-        var target_flags: *?Flags = undefined;
-
         if (flag.persistent) {
             try self.ensureLocalFlagsDoNotContain(flag);
             self.persistent_flags = self.persistent_flags orelse Flags.init(self.allocator);
-            target_flags = &self.persistent_flags;
+            self.persistent_flags.?.addFlag(flag, &diagnostics) catch |err| {
+                diagnostics.log_using(self.output_stream);
+                return err;
+            };
         } else {
             try self.ensurePersistentFlagsDoNotContain(flag);
-            self.local_flags = self.local_flags orelse Flags.init(self.allocator);
-            target_flags = &self.local_flags;
+            self.local_flags.addFlag(flag, &diagnostics) catch |err| {
+                diagnostics.log_using(self.output_stream);
+                return err;
+            };
         }
-        target_flags.*.?.addFlag(flag, &diagnostics) catch |err| {
-            diagnostics.log_using(self.output_stream);
-            return err;
-        };
     }
 
     pub fn markDeprecated(self: *Command, deprecated_message: []const u8) void {
@@ -130,9 +129,7 @@ pub const Command = struct {
 
     pub fn deinit(self: *Command) void {
         self.action.deinit();
-        if (self.local_flags) |*flags| {
-            flags.deinit();
-        }
+        self.local_flags.deinit();
         if (self.persistent_flags) |*flags| {
             flags.deinit();
         }
@@ -140,12 +137,10 @@ pub const Command = struct {
 
     fn ensureLocalFlagsDoNotContain(self: Command, flag: Flag) !void {
         var diagnostics: Diagnostics = .{};
-        if (self.local_flags) |local_flags| {
-            local_flags.ensureFlagDoesNotExist(flag, &diagnostics) catch |err| {
-                diagnostics.log_using(self.output_stream);
-                return err;
-            };
-        }
+        self.local_flags.ensureFlagDoesNotExist(flag, &diagnostics) catch |err| {
+            diagnostics.log_using(self.output_stream);
+            return err;
+        };
     }
 
     fn ensurePersistentFlagsDoNotContain(self: Command, flag: Flag) !void {
@@ -215,9 +210,7 @@ pub const Command = struct {
 
     fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags, should_merge_local_flags: bool, diagnostics: *Diagnostics) !void {
         if (should_merge_local_flags) {
-            if (self.local_flags) |local_flags| {
-                try target_flags.merge(&local_flags, diagnostics);
-            }
+            try target_flags.merge(&self.local_flags, diagnostics);
         }
         if (self.persistent_flags) |persistent_flags| {
             try target_flags.merge(&persistent_flags, diagnostics);
@@ -433,8 +426,7 @@ test "initialize a command with a local flag" {
 
     defer command.deinit();
 
-    try std.testing.expect(command.local_flags != null);
-    try std.testing.expectEqualStrings("verbose", command.local_flags.?.get("verbose").?.name);
+    try std.testing.expectEqualStrings("verbose", command.local_flags.get("verbose").?.name);
 }
 
 test "initialize a command without any flags" {
@@ -447,7 +439,7 @@ test "initialize a command without any flags" {
     var command = try Command.init("test", "test command", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
 
-    try std.testing.expect(command.local_flags.?.get("help") != null);
+    try std.testing.expect(command.local_flags.get("help") != null);
 }
 
 test "initialize an executable command with an alias" {
@@ -645,7 +637,7 @@ test "add a local flag" {
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
     defer command.deinit();
 
-    try std.testing.expectEqualStrings("priority", command.local_flags.?.get("priority").?.name);
+    try std.testing.expectEqualStrings("priority", command.local_flags.get("priority").?.name);
 }
 
 test "attempt to add an existing local flag" {

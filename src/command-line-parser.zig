@@ -24,12 +24,12 @@ const ParserState = enum { ExpectingFlagOrArgument, ExpectingFlagValue };
 
 pub const CommandLineParser = struct {
     arguments: *Arguments,
-    command_flags: ?Flags,
+    command_flags: Flags,
     diagnostics: *Diagnostics,
     current_state: ParserState,
     last_received_flag: ?Flag,
 
-    pub fn init(arguments: *Arguments, command_flags: ?Flags, diagnostics: *Diagnostics) CommandLineParser {
+    pub fn init(arguments: *Arguments, command_flags: Flags, diagnostics: *Diagnostics) CommandLineParser {
         return .{
             .arguments = arguments,
             .command_flags = command_flags,
@@ -78,14 +78,8 @@ pub const CommandLineParser = struct {
     }
 
     fn parseFlagName(self: *CommandLineParser, argument: []const u8, parsed_flags: *ParsedFlags) !void {
-        if (self.command_flags == null) {
-            return self.diagnostics.reportAndFail(.{ .NoFlagsAddedToCommand = .{
-                .parsed_flag = Flag.normalizeFlagName(argument),
-            } });
-        }
-
         const flag_name = Flag.normalizeFlagName(argument);
-        const last_flag: ?Flag = self.command_flags.?.get(flag_name) orelse return self.diagnostics.reportAndFail(.{ .FlagNotFound = .{ .flag_name = flag_name } });
+        const last_flag: ?Flag = self.command_flags.get(flag_name) orelse return self.diagnostics.reportAndFail(.{ .FlagNotFound = .{ .flag_name = flag_name } });
 
         const flag = last_flag.?;
         if (flag.flag_type == FlagType.boolean) {
@@ -132,26 +126,6 @@ pub const CommandLineParser = struct {
 };
 
 const FlagErrors = @import("flags.zig").FlagErrors;
-
-test "attempt to parse a command line with no flags registered to the command" {
-    const flags: ?Flags = null;
-    var diagnostics: Diagnostics = .{};
-
-    var parsed_flags = ParsedFlags.init(std.testing.allocator);
-    defer parsed_flags.deinit();
-
-    var parsed_arguments = std.ArrayList([]const u8).init(std.testing.allocator);
-    defer parsed_arguments.deinit();
-
-    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "5", "--verbose" });
-    arguments.skipFirst();
-
-    var parser = CommandLineParser.init(&arguments, flags, &diagnostics);
-    try std.testing.expectError(CommandParsingError.NoFlagsAddedToCommand, parser.parse(&parsed_flags, &parsed_arguments, false));
-
-    const diagnostics_type = diagnostics.diagnostics_type.?.NoFlagsAddedToCommand;
-    try std.testing.expectEqualStrings("verbose", diagnostics_type.parsed_flag);
-}
 
 test "attempt to parse a command line without explicit value for a non-boolean flag" {
     var flags = Flags.init(std.testing.allocator);
