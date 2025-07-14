@@ -324,6 +324,13 @@ pub const ParsedFlags = struct {
         try self.flag_by_name.put(flag.name, flag);
     }
 
+    pub fn updateFlag(
+        self: *ParsedFlags,
+        flag: ParsedFlag,
+    ) !void {
+        try self.flag_by_name.put(flag.name, flag);
+    }
+
     pub fn getBoolean(self: ParsedFlags, name: []const u8) FlagValueGetError!bool {
         const flag = self.flag_by_name.get(name) orelse return FlagValueGetError.FlagNotFound;
         switch (flag.value) {
@@ -871,6 +878,18 @@ test "add a couple of parsed flags with default value" {
 
     try std.testing.expect(parsed_flags.flag_by_name.contains("verbose"));
     try std.testing.expect(try parsed_flags.getBoolean("verbose") == false);
+}
+
+test "update a parsed flag value" {
+    const verbose_flag = ParsedFlag.init("verbose", FlagValue.type_boolean(false));
+
+    var parsed_flags = ParsedFlags.init(std.testing.allocator);
+    defer parsed_flags.deinit();
+
+    try parsed_flags.addFlag(verbose_flag);
+    try parsed_flags.updateFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(true)));
+
+    try std.testing.expect(try parsed_flags.getBoolean("verbose"));
 }
 
 test "merge parsed flags containing unique flags" {

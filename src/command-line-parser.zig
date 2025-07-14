@@ -20,16 +20,22 @@ pub const CommandParsingError = error{
     FlagNotFound,
 };
 
+const ParserState = enum { ExpectingFlagOrArgument, ExpectingFlagValue };
+
 pub const CommandLineParser = struct {
     arguments: *Arguments,
     command_flags: ?Flags,
     diagnostics: *Diagnostics,
+    current_state: ParserState,
+    last_received_flag: ?Flag,
 
     pub fn init(arguments: *Arguments, command_flags: ?Flags, diagnostics: *Diagnostics) CommandLineParser {
         return .{
             .arguments = arguments,
             .command_flags = command_flags,
             .diagnostics = diagnostics,
+            .current_state = ParserState.ExpectingFlagOrArgument,
+            .last_received_flag = null,
         };
     }
 
@@ -39,64 +45,89 @@ pub const CommandLineParser = struct {
         parsed_arguments: *std.ArrayList([]const u8),
         has_subcommands: bool,
     ) !void {
-        var last_flag: ?Flag = null;
         while (self.arguments.next()) |argument| {
-            if (Flag.looksLikeFlagName(argument)) {
-                if (self.command_flags == null) {
-                    return self.diagnostics.reportAndFail(.{ .NoFlagsAddedToCommand = .{
-                        .parsed_flag = Flag.normalizeFlagName(argument),
-                    } });
-                }
-                if (last_flag) |flag| {
-                    if (flag.flag_type == FlagType.boolean) {
-                        try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+            switch (self.current_state) {
+                .ExpectingFlagOrArgument => {
+                    if (Flag.looksLikeFlagName(argument)) {
+                        try self.parseFlagName(argument, parsed_flags);
                     } else {
-                        return self.diagnostics.reportAndFail(.{ .NoFlagValueProvided = .{
-                            .parsed_flag = Flag.normalizeFlagName(flag.name),
-                        } });
-                    }
-                }
-                const flag_name = Flag.normalizeFlagName(argument);
-                last_flag = self.command_flags.?.get(flag_name) orelse return self.diagnostics.reportAndFail(.{ .FlagNotFound = .{ .flag_name = flag_name } });
-            } else if (last_flag) |flag| {
-                if (flag.flag_type == FlagType.boolean) {
-                    if (Flag.looksLikeBooleanFlagValue(argument)) {
-                        const flag_value = try flag.toFlagValue(argument, self.diagnostics);
-                        try parsed_flags.addFlag(ParsedFlag.init(flag.name, flag_value));
-                        last_flag = null;
-                    } else {
-                        try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
-                        try parsed_arguments.append(argument);
-                        last_flag = null;
-
-                        if (has_subcommands) {
-                            break;
+                        if (self.last_received_flag) |_| {
+                            try self.parseBooleanFlagValueOrArgument(argument, parsed_flags, parsed_arguments);
+                        } else {
+                            try self.addArgument(argument, parsed_arguments);
+                            if (has_subcommands) {
+                                break;
+                            }
                         }
                     }
-                } else {
-                    const flag_value = try flag.toFlagValue(argument, self.diagnostics);
-                    try parsed_flags.addFlag(ParsedFlag.init(flag.name, flag_value));
-                    last_flag = null;
-                }
-            } else {
-                try parsed_arguments.append(argument);
-                last_flag = null;
-
-                if (has_subcommands) {
-                    break;
-                }
+                },
+                .ExpectingFlagValue => {
+                    try self.parseFlagValue(argument, parsed_flags);
+                },
             }
         }
-
-        if (last_flag) |flag| {
+        if (self.last_received_flag) |flag| {
             if (flag.flag_type != FlagType.boolean) {
                 return self.diagnostics.reportAndFail(.{ .NoFlagValueProvided = .{
                     .parsed_flag = flag.name,
                 } });
             }
             try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
-            last_flag = null;
+            self.last_received_flag = null;
         }
+    }
+
+    fn parseFlagName(self: *CommandLineParser, argument: []const u8, parsed_flags: *ParsedFlags) !void {
+        if (self.command_flags == null) {
+            return self.diagnostics.reportAndFail(.{ .NoFlagsAddedToCommand = .{
+                .parsed_flag = Flag.normalizeFlagName(argument),
+            } });
+        }
+
+        const flag_name = Flag.normalizeFlagName(argument);
+        const last_flag: ?Flag = self.command_flags.?.get(flag_name) orelse return self.diagnostics.reportAndFail(.{ .FlagNotFound = .{ .flag_name = flag_name } });
+
+        const flag = last_flag.?;
+        if (flag.flag_type == FlagType.boolean) {
+            try parsed_flags.addFlag(ParsedFlag.init(flag.name, FlagValue.type_boolean(true)));
+            self.current_state = ParserState.ExpectingFlagOrArgument;
+        } else {
+            self.current_state = ParserState.ExpectingFlagValue;
+        }
+        self.last_received_flag = last_flag;
+    }
+
+    fn parseBooleanFlagValueOrArgument(self: *CommandLineParser, argument: []const u8, parsed_flags: *ParsedFlags, parsed_arguments: *std.ArrayList([]const u8)) !void {
+        if (Flag.looksLikeBooleanFlagValue(argument)) {
+            const flag = self.last_received_flag.?;
+            const flag_value = try flag.toFlagValue(argument, self.diagnostics);
+            try parsed_flags.updateFlag(ParsedFlag.init(flag.name, flag_value));
+        } else {
+            try self.addArgument(argument, parsed_arguments);
+        }
+        self.current_state = ParserState.ExpectingFlagOrArgument;
+        self.last_received_flag = null;
+    }
+
+    fn addArgument(self: *CommandLineParser, argument: []const u8, parsed_arguments: *std.ArrayList([]const u8)) !void {
+        try parsed_arguments.append(argument);
+        self.current_state = ParserState.ExpectingFlagOrArgument;
+        self.last_received_flag = null;
+    }
+
+    fn parseFlagValue(self: *CommandLineParser, argument: []const u8, parsed_flags: *ParsedFlags) !void {
+        if (Flag.looksLikeFlagName(argument)) {
+            return self.diagnostics.reportAndFail(.{ .NoFlagValueProvided = .{
+                .parsed_flag = self.last_received_flag.?.name,
+            } });
+        }
+        const flag = self.last_received_flag.?;
+        const flag_value = try flag.toFlagValue(argument, self.diagnostics);
+
+        try parsed_flags.addFlag(ParsedFlag.init(flag.name, flag_value));
+
+        self.last_received_flag = null;
+        self.current_state = ParserState.ExpectingFlagOrArgument;
     }
 };
 
