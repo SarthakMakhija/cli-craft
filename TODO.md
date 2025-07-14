@@ -11,17 +11,16 @@
     - [X] Windows-latest (x86_64)
 - [X] Hierarchical deinit in Commands
 - [ ] Support other properties in command like usage
-- [ ] Support help command
 - [X] Add support for logging/printing
 - [ ] Add errors on console 
     - [X] Pass a single ErrorLog
     - [ ] Revisit diagnostics across all the methods
     - [ ] Add argument specification errors in diagnostics
-- [ ] Print command
+- [ ] Support Help for a command
     - [X] Add support for printing a single command
-    - [ ] Integrate printing
+    - [X] Integrate printing
     - [ ] Print command help on execution errors
-- [ ] Print commands
+- [X] Support Help for all commands
     - [X] Add support for printing all commands
     - [X] Integrate printing
 - [X] Add support for local flags
@@ -37,7 +36,7 @@
 - [ ] Revisit export of public APIs + errors
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [X] An entrypoint of the cli-craft library
-- [ ] An examples folder
+- [ ] An example project
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
 - [ ] README
 - [ ] Code documentation

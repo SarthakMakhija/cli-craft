@@ -59,7 +59,7 @@ pub const CommandHelp = struct {
                 try usage.writer().writeAll(" [arguments]");
             },
         }
-        try self.output_stream.print("{s} \n\n", .{usage.items});
+        try self.output_stream.print("{s} \n", .{usage.items});
     }
 
     fn write_aliases(self: CommandHelp) !void {

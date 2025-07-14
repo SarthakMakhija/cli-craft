@@ -16,6 +16,7 @@ const CommandLineParser = @import("command-line-parser.zig").CommandLineParser;
 const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
 
 const CommandsHelp = @import("help.zig").CommandsHelp;
+const CommandHelp = @import("help.zig").CommandHelp;
 const OutputStream = @import("stream.zig").OutputStream;
 
 const prettytable = @import("prettytable");
@@ -184,6 +185,11 @@ pub const Command = struct {
 
         var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
         try command_line_parser.parse(&parsed_flags, &parsed_arguments, if (self.action == .executable) false else true);
+
+        if (parsed_flags.containsHelp()) {
+            const command_help = CommandHelp.init(self, self.output_stream);
+            return try command_help.printHelp(self.allocator, &all_flags);
+        }
 
         switch (self.action) {
             .executable => |executable_fn| {
@@ -606,6 +612,67 @@ test "execute a command with a subcommand" {
     try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
 
     try std.testing.expectEqualStrings("pods", get_command_result);
+}
+
+test "execute help for the parent command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", output_stream, std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--help", "get", "pods" });
+    arguments.skipFirst();
+
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "kubectl").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "get").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "-h").? > 0);
+}
+
+test "execute help for the child command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, output_stream, std.testing.allocator);
+
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "--help", "pods" });
+    arguments.skipFirst();
+
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "get").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "--help").? > 0);
 }
 
 test "attempt to execute a command with a subcommand but with incorrect subcommand name from the argument" {
