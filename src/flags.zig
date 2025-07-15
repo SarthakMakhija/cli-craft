@@ -14,6 +14,7 @@ pub const FlagAddError = error{
     FlagNameAlreadyExists,
     FlagShortNameAlreadyExists,
     FlagShortNameMergeConflict,
+    FlagConflictDetected,
 };
 
 pub const FlagValueGetError = error{
@@ -30,7 +31,7 @@ pub const FlagErrors = FlagAddError || FlagValueGetError || FlagValueConversionE
 
 pub const FlagConflictType = union(enum) {
     SameLongNameDifferentShortName: struct { short_name: u8, other_short_name: u8 },
-    SameShortNameDifferentLongName: struct { flag_name: []const u8, other_flag_name: []const u8 },
+    SameShortNameDifferentLongName: struct { short_name: u8, flag_name: []const u8, other_flag_name: []const u8 },
     MissingShortName: struct { expected_short_name: u8 },
 };
 
@@ -38,6 +39,38 @@ pub const FlagConflict = struct {
     flag_name: ?[]const u8 = null,
     conflict_type: ?FlagConflictType = null,
     has_conflict: bool,
+
+    pub fn diagnostic_type(self: FlagConflict, command: []const u8, subcommand: []const u8) DiagnosticType {
+        std.debug.assert(self.has_conflict);
+        switch (self.conflict_type.?) {
+            .SameLongNameDifferentShortName => |conflict_type| {
+                return .{ .FlagConflictSameLongNameDifferentShortName = .{
+                    .command = command,
+                    .subcommand = subcommand,
+                    .flag_name = self.flag_name.?,
+                    .short_name = conflict_type.short_name,
+                    .other_short_name = conflict_type.other_short_name,
+                } };
+            },
+            .SameShortNameDifferentLongName => |conflict_type| {
+                return .{ .FlagConflictSameShortNameDifferentLongName = .{
+                    .command = command,
+                    .subcommand = subcommand,
+                    .flag_name = conflict_type.flag_name,
+                    .other_flag_name = conflict_type.other_flag_name,
+                    .short_name = conflict_type.short_name,
+                } };
+            },
+            .MissingShortName => |conflict_type| {
+                return .{ .FlagConflictMissingShortName = .{
+                    .command = command,
+                    .subcommand = subcommand,
+                    .flag_name = self.flag_name.?,
+                    .expected_short_name = conflict_type.expected_short_name,
+                } };
+            },
+        }
+    }
 };
 
 pub const Flags = struct {
@@ -117,7 +150,7 @@ pub const Flags = struct {
         }
     }
 
-    pub fn determineConflictBetween(self: *Flags, other: *const Flags) FlagConflict {
+    pub fn determineConflictWith(self: *Flags, other: *const Flags) FlagConflict {
         var iterator = self.flag_by_name.iterator();
         while (iterator.next()) |entry| {
             const flag = entry.value_ptr;
@@ -157,6 +190,7 @@ pub const Flags = struct {
                             .flag_name = other_flag_long_name,
                             .has_conflict = false,
                             .conflict_type = .{ .SameShortNameDifferentLongName = .{
+                                .short_name = short_name,
                                 .flag_name = flag.name,
                                 .other_flag_name = other_flag_long_name,
                             } },
@@ -444,6 +478,55 @@ pub const ParsedFlags = struct {
     }
 };
 
+test "flag conflict same long name with different short name to diagnostic type" {
+    const conflict = FlagConflict{
+        .conflict_type = .{ .SameLongNameDifferentShortName = .{ .short_name = 'n', .other_short_name = 'v' } },
+        .flag_name = "namespace",
+        .has_conflict = true,
+    };
+    const diagnostics_type = conflict.diagnostic_type("kubectl", "get");
+
+    try std.testing.expectEqualStrings("kubectl", diagnostics_type.FlagConflictSameLongNameDifferentShortName.command);
+    try std.testing.expectEqualStrings("get", diagnostics_type.FlagConflictSameLongNameDifferentShortName.subcommand);
+    try std.testing.expectEqualStrings("namespace", diagnostics_type.FlagConflictSameLongNameDifferentShortName.flag_name);
+    try std.testing.expectEqual('n', diagnostics_type.FlagConflictSameLongNameDifferentShortName.short_name);
+    try std.testing.expectEqual('v', diagnostics_type.FlagConflictSameLongNameDifferentShortName.other_short_name);
+}
+
+test "flag conflict same short name with different long name to diagnostic type" {
+    const conflict = FlagConflict{
+        .conflict_type = .{ .SameShortNameDifferentLongName = .{
+            .short_name = 'n',
+            .flag_name = "namespace",
+            .other_flag_name = "verbose",
+        } },
+        .flag_name = "namespace",
+        .has_conflict = true,
+    };
+    const diagnostics_type = conflict.diagnostic_type("kubectl", "get");
+
+    try std.testing.expectEqualStrings("kubectl", diagnostics_type.FlagConflictSameShortNameDifferentLongName.command);
+    try std.testing.expectEqualStrings("get", diagnostics_type.FlagConflictSameShortNameDifferentLongName.subcommand);
+    try std.testing.expectEqualStrings("namespace", diagnostics_type.FlagConflictSameShortNameDifferentLongName.flag_name);
+    try std.testing.expectEqualStrings("verbose", diagnostics_type.FlagConflictSameShortNameDifferentLongName.other_flag_name);
+    try std.testing.expectEqual('n', diagnostics_type.FlagConflictSameShortNameDifferentLongName.short_name);
+}
+
+test "flag conflict missing short name to diagnostic type" {
+    const conflict = FlagConflict{
+        .conflict_type = .{ .MissingShortName = .{
+            .expected_short_name = 'n',
+        } },
+        .flag_name = "namespace",
+        .has_conflict = true,
+    };
+    const diagnostics_type = conflict.diagnostic_type("kubectl", "get");
+
+    try std.testing.expectEqualStrings("kubectl", diagnostics_type.FlagConflictMissingShortName.command);
+    try std.testing.expectEqualStrings("get", diagnostics_type.FlagConflictMissingShortName.subcommand);
+    try std.testing.expectEqual('n', diagnostics_type.FlagConflictMissingShortName.expected_short_name);
+}
+
 test "build a boolean flag with name and description" {
     const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
         .build();
@@ -639,7 +722,7 @@ test "determine conflict based on missing short name for a flag name" {
     defer other_flags.deinit();
     try other_flags.addFlag(other_namespace_flag, &diagnostics);
 
-    const conflict = flags.determineConflictBetween(&other_flags);
+    const conflict = flags.determineConflictWith(&other_flags);
     try std.testing.expectEqualStrings("namespace", conflict.flag_name.?);
     try std.testing.expectEqual('n', conflict.conflict_type.?.MissingShortName.expected_short_name);
 }
@@ -663,7 +746,7 @@ test "determine conflict based on different short name for the same flag name" {
     defer other_flags.deinit();
     try other_flags.addFlag(other_namespace_flag, &diagnostics);
 
-    const conflict = flags.determineConflictBetween(&other_flags);
+    const conflict = flags.determineConflictWith(&other_flags);
     try std.testing.expectEqualStrings("namespace", conflict.flag_name.?);
     try std.testing.expectEqual('n', conflict.conflict_type.?.SameLongNameDifferentShortName.short_name);
     try std.testing.expectEqual('p', conflict.conflict_type.?.SameLongNameDifferentShortName.other_short_name);
@@ -688,10 +771,11 @@ test "determine conflict based on different long name for the same flag short na
     defer other_flags.deinit();
     try other_flags.addFlag(other_namespace_flag, &diagnostics);
 
-    const conflict = flags.determineConflictBetween(&other_flags);
+    const conflict = flags.determineConflictWith(&other_flags);
     try std.testing.expectEqualStrings("verbose", conflict.flag_name.?);
     try std.testing.expectEqual("namespace", conflict.conflict_type.?.SameShortNameDifferentLongName.flag_name);
     try std.testing.expectEqual("verbose", conflict.conflict_type.?.SameShortNameDifferentLongName.other_flag_name);
+    try std.testing.expectEqual('n', conflict.conflict_type.?.SameShortNameDifferentLongName.short_name);
 }
 
 test "has no conflict" {
@@ -713,7 +797,7 @@ test "has no conflict" {
     defer other_flags.deinit();
     try other_flags.addFlag(other_namespace_flag, &diagnostics);
 
-    const conflict = flags.determineConflictBetween(&other_flags);
+    const conflict = flags.determineConflictWith(&other_flags);
     try std.testing.expect(conflict.has_conflict == false);
 }
 
