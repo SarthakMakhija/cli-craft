@@ -30,9 +30,18 @@ pub const FlagValueConversionError = error{
 pub const FlagErrors = FlagAddError || FlagValueGetError || FlagValueConversionError;
 
 pub const FlagConflictType = union(enum) {
-    SameLongNameDifferentShortName: struct { short_name: u8, other_short_name: u8 },
-    SameShortNameDifferentLongName: struct { short_name: u8, flag_name: []const u8, other_flag_name: []const u8 },
-    MissingShortName: struct { expected_short_name: u8 },
+    SameLongNameDifferentShortName: struct {
+        short_name: u8,
+        other_short_name: u8,
+    },
+    SameShortNameDifferentLongName: struct {
+        short_name: u8,
+        flag_name: []const u8,
+        other_flag_name: []const u8,
+    },
+    MissingShortName: struct {
+        expected_short_name: u8,
+    },
 };
 
 pub const FlagConflict = struct {
@@ -229,12 +238,26 @@ pub const Flags = struct {
             var description: []const u8 = undefined;
             if (flag.default_value) |default_value| {
                 description = switch (default_value) {
-                    .boolean => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {any})", .{ flag.description, @tagName(flag.flag_type), default_value.boolean }),
-                    .int64 => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {d})", .{ flag.description, @tagName(flag.flag_type), default_value.int64 }),
-                    .string => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {s})", .{ flag.description, @tagName(flag.flag_type), default_value.string }),
+                    .boolean => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {any})", .{
+                        flag.description,
+                        @tagName(flag.flag_type),
+                        default_value.boolean,
+                    }),
+                    .int64 => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {d})", .{
+                        flag.description,
+                        @tagName(flag.flag_type),
+                        default_value.int64,
+                    }),
+                    .string => try std.fmt.allocPrint(allocator, "{s} ({s}, default: {s})", .{
+                        flag.description,
+                        @tagName(flag.flag_type),
+                        default_value.string,
+                    }),
                 };
             } else {
-                description = try std.fmt.allocPrint(allocator, "{s} ({s})", .{ flag.description, @tagName(flag.flag_type) });
+                description = try std.fmt.allocPrint(allocator, "{s} ({s})", .{ flag.description, @tagName(
+                    flag.flag_type,
+                ) });
             }
 
             try column_values.append(flag_name);
