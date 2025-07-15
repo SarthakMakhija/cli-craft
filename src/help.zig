@@ -87,7 +87,7 @@ pub const CommandHelp = struct {
     fn write_argument_specification(self: CommandHelp, allocator: std.mem.Allocator) !void {
         if (self.command.argument_specification) |argument_specification| {
             try argument_specification.print(self.output_stream, allocator);
-            try self.output_stream.print("\n\n", .{});
+            try self.output_stream.print("\n", .{});
         }
     }
 

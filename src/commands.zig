@@ -184,7 +184,11 @@ pub const Command = struct {
         defer parsed_arguments.deinit();
 
         var command_line_parser = CommandLineParser.init(arguments, all_flags, diagnostics);
-        try command_line_parser.parse(&parsed_flags, &parsed_arguments, if (self.action == .executable) false else true);
+        command_line_parser.parse(&parsed_flags, &parsed_arguments, if (self.action == .executable) false else true) catch |err| {
+            diagnostics.log_using(self.output_stream);
+            try self.printHelp(&all_flags);
+            return err;
+        };
 
         if (parsed_flags.containsHelp()) {
             return try self.printHelp(&all_flags);
@@ -193,14 +197,23 @@ pub const Command = struct {
         switch (self.action) {
             .executable => |executable_fn| {
                 if (self.argument_specification) |argument_specification| {
-                    try argument_specification.validate(parsed_arguments.items.len);
+                    argument_specification.validate(parsed_arguments.items.len) catch |err| {
+                        diagnostics.log_using(self.output_stream);
+                        try self.printHelp(&all_flags);
+                        return err;
+                    };
                 }
 
                 try all_flags.addFlagsWithDefaultValueTo(&parsed_flags);
                 return executable_fn(parsed_flags, parsed_arguments.items);
             },
             .subcommands => |sub_commands| {
-                const sub_command = try self.get_subcommand(&parsed_arguments, sub_commands, diagnostics);
+                const sub_command = self
+                    .get_subcommand(&parsed_arguments, sub_commands, diagnostics) catch |err| {
+                    diagnostics.log_using(self.output_stream);
+                    try self.printHelp(&all_flags);
+                    return err;
+                };
 
                 var child_flags = Flags.init(allocator);
                 defer child_flags.deinit();
@@ -696,6 +709,89 @@ test "attempt to execute a command with a subcommand but with incorrect subcomma
 
     var diagnostics: Diagnostics = .{};
     try std.testing.expectError(CommandParsingError.SubcommandNotAddedToParentCommand, kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator));
+}
+
+test "attempt to execute a command with an unregistered flag and it should print command's help" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var command = try Command.init("add", "add numbers", runnable, ouptut_stream, std.testing.allocator);
+    defer command.deinit();
+
+    var diagnostics: Diagnostics = .{};
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "4", "--verbose" });
+    command.execute(&arguments, &diagnostics, std.testing.allocator) catch {};
+
+    const diagnostics_type = diagnostics.diagnostics_type.?.FlagNotFound;
+    try std.testing.expectEqualStrings("verbose", diagnostics_type.flag_name);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? >= 0);
+}
+
+test "attempt to execute a command with invalid argument specification and it should print command's help" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var command = try Command.init("add", "add numbers", runnable, ouptut_stream, std.testing.allocator);
+    command.setArgumentSpecification(ArgumentSpecification.mustBeExact(2));
+    defer command.deinit();
+
+    var diagnostics: Diagnostics = .{};
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "4", "5" });
+    command.execute(&arguments, &diagnostics, std.testing.allocator) catch {};
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts exactly 2 argument(s)").? > 0);
+}
+
+test "attempt to execute a command with incorrect child command and it should print command's help" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+    const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var kubectl_command = try Command.initParent("kubectl", "Kubernetes entrypoint", ouptut_stream, std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+
+    try kubectl_command.addSubcommand(&get_command);
+
+    var diagnostics: Diagnostics = .{};
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "delete", "pods" });
+    kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator) catch {};
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "kubectl").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "get").? > 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Get objects").? > 0);
 }
 
 test "add a local flag" {
