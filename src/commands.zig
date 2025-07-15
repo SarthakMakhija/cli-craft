@@ -42,6 +42,7 @@ pub const Command = struct {
     description: []const u8,
     allocator: std.mem.Allocator,
     action: CommandAction,
+    parent: ?*Command = null,
     aliases: ?CommandAliases = null,
     argument_specification: ?ArgumentSpecification = null,
     deprecated_message: ?[]const u8 = null,
@@ -84,7 +85,7 @@ pub const Command = struct {
 
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         var diagnostics: Diagnostics = .{};
-        self.action.addSubcommand(self.name, subcommand, &diagnostics) catch |err| {
+        self.action.addSubcommand(self, subcommand, &diagnostics) catch |err| {
             diagnostics.log_using(self.output_stream);
             return err;
         };
@@ -520,6 +521,9 @@ test "initialize a parent command with subcommands" {
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
     try std.testing.expectEqualStrings("get", kubectl_command.action.subcommands.get("get").?.name);
+
+    try std.testing.expect(get_command.parent != null);
+    try std.testing.expectEqualStrings("kubectl", get_command.parent.?.name);
 }
 
 test "initialize an executable command with argument specification (1)" {
