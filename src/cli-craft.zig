@@ -44,28 +44,60 @@ pub const CliCraft = struct {
     output_stream: OutputStream,
 
     pub fn init(options: GlobalOptions) !CliCraft {
-        const output_stream = OutputStream.init(options.output_options.writer, options.error_options.writer);
+        const output_stream = OutputStream.init(
+            options.output_options.writer,
+            options.error_options.writer,
+        );
 
         var commands = Commands.init(options.allocator, output_stream);
         try commands.addHelp();
 
-        return .{ .options = options, .commands = commands, .output_stream = output_stream };
+        return .{
+            .options = options,
+            .commands = commands,
+            .output_stream = output_stream,
+        };
     }
 
-    pub fn newExecutableCommand(self: CliCraft, name: []const u8, description: []const u8, executable: CommandFn) !Command {
-        return try Command.init(name, description, executable, self.output_stream, self.options.allocator);
+    pub fn newExecutableCommand(
+        self: CliCraft,
+        name: []const u8,
+        description: []const u8,
+        executable: CommandFn,
+    ) !Command {
+        return try Command.init(
+            name,
+            description,
+            executable,
+            self.output_stream,
+            self.options.allocator,
+        );
     }
 
     pub fn newParentCommand(self: CliCraft, name: []const u8, description: []const u8) !Command {
-        return try Command.initParent(name, description, self.output_stream, self.options.allocator);
+        return try Command.initParent(
+            name,
+            description,
+            self.output_stream,
+            self.options.allocator,
+        );
     }
 
-    pub fn addExecutableCommand(self: *CliCraft, name: []const u8, description: []const u8, executable: CommandFn) !void {
-        try self.addCommand(try self.newExecutableCommand(name, description, executable));
+    pub fn addExecutableCommand(
+        self: *CliCraft,
+        name: []const u8,
+        description: []const u8,
+        executable: CommandFn,
+    ) !void {
+        try self.addCommand(
+            try self.newExecutableCommand(name, description, executable),
+        );
     }
 
     pub fn addParentCommand(self: *CliCraft, name: []const u8, description: []const u8) !void {
-        try self.addCommand(self.newParentCommand(name, description));
+        try self.addCommand(
+            self.newParentCommand(name, description),
+        );
     }
 
     pub fn addCommand(self: *CliCraft, command: Command) !void {
@@ -80,7 +112,11 @@ pub const CliCraft = struct {
     pub fn execute(self: *CliCraft) !void {
         var diagnostics: Diagnostics = .{};
 
-        self.commands.execute(self.options.application_description, Arguments.init(), &diagnostics) catch |err| {
+        self.commands.execute(
+            self.options.application_description,
+            Arguments.init(),
+            &diagnostics,
+        ) catch |err| {
             diagnostics.log_using(self.output_stream);
             return err;
         };
@@ -90,7 +126,11 @@ pub const CliCraft = struct {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
 
-        self.commands.execute(self.options.application_description, &command_line_arguments, &diagnostics) catch |err| {
+        self.commands.execute(
+            self.options.application_description,
+            &command_line_arguments,
+            &diagnostics,
+        ) catch |err| {
             diagnostics.log_using(self.output_stream);
             return err;
         };
@@ -157,13 +197,33 @@ test "execute an executable command with arguments and flags" {
         }
     }.run;
 
-    var command = try cliCraft.newExecutableCommand("add", "adds numbers", runnable);
-    try command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
-    try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
-    try command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+    var command = try cliCraft.newExecutableCommand(
+        "add",
+        "adds numbers",
+        runnable,
+    );
+    try command.addFlag(
+        Flag.builder(
+            "verbose",
+            "Enable verbose output",
+            FlagType.boolean,
+        ).build(),
+    );
+    try command.addFlag(Flag.builder(
+        "priority",
+        "Enable priority",
+        FlagType.boolean,
+    ).build());
+    try command.addFlag(Flag.builder_with_default_value(
+        "timeout",
+        "Define timeout",
+        FlagValue.type_int64(25),
+    ).withShortName('t').build());
 
     try cliCraft.addCommand(command);
-    try cliCraft.executeWithArguments(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
+    try cliCraft.executeWithArguments(
+        &[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" },
+    );
 
     try std.testing.expectEqual(7, add_command_result);
 }
@@ -183,8 +243,15 @@ test "execute a command with subcommand" {
         }
     }.run;
 
-    var get_command = try cliCraft.newExecutableCommand("get", "get objects", runnable);
-    var kubectl_command = try cliCraft.newParentCommand("kubectl", "kubernetes entry");
+    var get_command = try cliCraft.newExecutableCommand(
+        "get",
+        "get objects",
+        runnable,
+    );
+    var kubectl_command = try cliCraft.newParentCommand(
+        "kubectl",
+        "kubernetes entry",
+    );
     try kubectl_command.addSubcommand(&get_command);
 
     try cliCraft.addCommand(kubectl_command);
