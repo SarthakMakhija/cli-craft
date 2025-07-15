@@ -28,6 +28,18 @@ pub const FlagValueConversionError = error{
 
 pub const FlagErrors = FlagAddError || FlagValueGetError || FlagValueConversionError;
 
+pub const FlagConflictType = union(enum) {
+    SameLongNameDifferentShortName: struct { short_name: u8, other_short_name: u8 },
+    SameShortNameDifferentLongName: struct { flag_name: []const u8, other_flag_name: []const u8 },
+    MissingShortName: struct { expected_short_name: u8 },
+};
+
+pub const FlagConflict = struct {
+    flag_name: ?[]const u8 = null,
+    conflict_type: ?FlagConflictType = null,
+    has_conflict: bool,
+};
+
 pub const Flags = struct {
     flag_by_name: std.StringHashMap(Flag),
     short_name_to_long_name: std.AutoHashMap(u8, []const u8),
@@ -103,6 +115,59 @@ pub const Flags = struct {
             }
             try self.addFlag(other_flag.*, diagnostics);
         }
+    }
+
+    pub fn determineConflictBetween(self: *Flags, other: *const Flags) FlagConflict {
+        var iterator = self.flag_by_name.iterator();
+        while (iterator.next()) |entry| {
+            const flag = entry.value_ptr;
+
+            if (other.flag_by_name.contains(flag.name)) {
+                const other_flag = other.get(flag.name).?;
+
+                if (flag.short_name) |short_name| {
+                    if (other_flag.short_name) |other_short_name| {
+                        if (short_name != other_short_name) {
+                            return FlagConflict{
+                                .flag_name = other_flag.name,
+                                .has_conflict = true,
+                                .conflict_type = .{ .SameLongNameDifferentShortName = .{
+                                    .short_name = short_name,
+                                    .other_short_name = other_short_name,
+                                } },
+                            };
+                        }
+                    } else {
+                        return FlagConflict{
+                            .flag_name = other_flag.name,
+                            .has_conflict = true,
+                            .conflict_type = .{ .MissingShortName = .{
+                                .expected_short_name = short_name,
+                            } },
+                        };
+                    }
+                }
+                // If parent does NOT have a short name, then child having one or not having one is fine.
+            }
+
+            if (flag.short_name) |short_name| {
+                if (other.short_name_to_long_name.get(short_name)) |other_flag_long_name| {
+                    if (!std.mem.eql(u8, other_flag_long_name, flag.name)) {
+                        return FlagConflict{
+                            .flag_name = other_flag_long_name,
+                            .has_conflict = false,
+                            .conflict_type = .{ .SameShortNameDifferentLongName = .{
+                                .flag_name = flag.name,
+                                .other_flag_name = other_flag_long_name,
+                            } },
+                        };
+                    }
+                }
+            }
+        }
+        return .{
+            .has_conflict = false,
+        };
     }
 
     pub fn print(self: *Flags, table: *prettytable.Table, output_stream: OutputStream, allocator: std.mem.Allocator) !void {
@@ -554,6 +619,102 @@ test "add a flag and check its existence by name" {
     try flags.addFlag(namespace_flag, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("namespace").?.name);
+}
+
+test "determine conflict based on missing short name for a flag name" {
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
+
+    const other_namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .build();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+    try other_flags.addFlag(other_namespace_flag, &diagnostics);
+
+    const conflict = flags.determineConflictBetween(&other_flags);
+    try std.testing.expectEqualStrings("namespace", conflict.flag_name.?);
+    try std.testing.expectEqual('n', conflict.conflict_type.?.MissingShortName.expected_short_name);
+}
+
+test "determine conflict based on different short name for the same flag name" {
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
+
+    const other_namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('p')
+        .build();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+    try other_flags.addFlag(other_namespace_flag, &diagnostics);
+
+    const conflict = flags.determineConflictBetween(&other_flags);
+    try std.testing.expectEqualStrings("namespace", conflict.flag_name.?);
+    try std.testing.expectEqual('n', conflict.conflict_type.?.SameLongNameDifferentShortName.short_name);
+    try std.testing.expectEqual('p', conflict.conflict_type.?.SameLongNameDifferentShortName.other_short_name);
+}
+
+test "determine conflict based on different long name for the same flag short name" {
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
+
+    const other_namespace_flag = Flag.builder_with_default_value("verbose", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+    try other_flags.addFlag(other_namespace_flag, &diagnostics);
+
+    const conflict = flags.determineConflictBetween(&other_flags);
+    try std.testing.expectEqualStrings("verbose", conflict.flag_name.?);
+    try std.testing.expectEqual("namespace", conflict.conflict_type.?.SameShortNameDifferentLongName.flag_name);
+    try std.testing.expectEqual("verbose", conflict.conflict_type.?.SameShortNameDifferentLongName.other_flag_name);
+}
+
+test "has no conflict" {
+    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build();
+
+    var flags = Flags.init(std.testing.allocator);
+    defer flags.deinit();
+
+    var diagnostics: Diagnostics = .{};
+    try flags.addFlag(namespace_flag, &diagnostics);
+
+    const other_namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+        .withShortName('n')
+        .build();
+
+    var other_flags = Flags.init(std.testing.allocator);
+    defer other_flags.deinit();
+    try other_flags.addFlag(other_namespace_flag, &diagnostics);
+
+    const conflict = flags.determineConflictBetween(&other_flags);
+    try std.testing.expect(conflict.has_conflict == false);
 }
 
 test "print flags" {
