@@ -69,11 +69,31 @@ pub const ArgumentSpecification = union(enum) {
         try output_stream.print("Argument Specification:\n", .{});
         const result: []const u8 = switch (self) {
             .zero => try std.fmt.allocPrint(allocator, "  accepts zero arguments", .{}),
-            .minimum => |argument_count| try std.fmt.allocPrint(allocator, "  accepts minimum of {d} argument(s)", .{argument_count}),
-            .maximum => |argument_count| try std.fmt.allocPrint(allocator, "  accepts maximum of {d} argument(s)", .{argument_count}),
-            .exact => |argument_count| try std.fmt.allocPrint(allocator, "  accepts exactly {d} argument(s)", .{argument_count}),
-            .endExclusive => |range| try std.fmt.allocPrint(allocator, "  accepts at least {d} argument(s), but less than {d} argument(s)", .{ range.min, range.max }),
-            .endInclusive => |range| try std.fmt.allocPrint(allocator, "  accepts at least {d} argument(s) and at most {d} argument(s)", .{ range.min, range.max }),
+            .minimum => |argument_count| try std.fmt.allocPrint(
+                allocator,
+                "  accepts minimum of {d} argument(s)",
+                .{argument_count},
+            ),
+            .maximum => |argument_count| try std.fmt.allocPrint(
+                allocator,
+                "  accepts maximum of {d} argument(s)",
+                .{argument_count},
+            ),
+            .exact => |argument_count| try std.fmt.allocPrint(
+                allocator,
+                "  accepts exactly {d} argument(s)",
+                .{argument_count},
+            ),
+            .endExclusive => |range| try std.fmt.allocPrint(
+                allocator,
+                "  accepts at least {d} argument(s), but less than {d} argument(s)",
+                .{ range.min, range.max },
+            ),
+            .endInclusive => |range| try std.fmt.allocPrint(
+                allocator,
+                "  accepts at least {d} argument(s) and at most {d} argument(s)",
+                .{ range.min, range.max },
+            ),
         };
         defer allocator.free(result);
         try output_stream.printAll(result);
@@ -81,47 +101,80 @@ pub const ArgumentSpecification = union(enum) {
 };
 
 test "arguments are not zero" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsNotEqualToZero, ArgumentSpecification.mustBeZero().validate(5));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsNotEqualToZero,
+        ArgumentSpecification.mustBeZero().validate(5),
+    );
 }
 
 test "arguments are less than the minimum" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsLessThanMinimum, ArgumentSpecification.mustBeMinimum(10).validate(5));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsLessThanMinimum,
+        ArgumentSpecification.mustBeMinimum(10).validate(5),
+    );
 }
 
 test "arguments are greater than the maximum" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsGreaterThanMaximum, ArgumentSpecification.mustBeMaximum(3).validate(5));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsGreaterThanMaximum,
+        ArgumentSpecification.mustBeMaximum(3).validate(5),
+    );
 }
 
 test "arguments are not matching the exact" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsNotMatchingExpected, ArgumentSpecification.mustBeExact(3).validate(2));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsNotMatchingExpected,
+        ArgumentSpecification.mustBeExact(3).validate(2),
+    );
 }
 
 test "arguments are not in end-exclusive range, given argument count is equal to the maximum argument of the range" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndExclusiveRange, (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(5));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsNotInEndExclusiveRange,
+        (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(5),
+    );
 }
 
 test "arguments are not in end-exclusive range, given argument count is less than the minimum argument of the range" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndExclusiveRange, (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(1));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsNotInEndExclusiveRange,
+        (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(1),
+    );
 }
 
 test "arguments are not in end-inclusive range, given argument count is greater than the maximum argument of the range" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndInclusiveRange, (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(6));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsNotInEndInclusiveRange,
+        (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(6),
+    );
 }
 
 test "arguments are not in end-inclusive range, given argument count is less than the minimum argument of the range" {
-    try std.testing.expectError(ArgumentValidationError.ArgumentsNotInEndInclusiveRange, (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(1));
+    try std.testing.expectError(
+        ArgumentValidationError.ArgumentsNotInEndInclusiveRange,
+        (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(1),
+    );
 }
 
 test "invalid argument range for end exclusive range 1" {
-    try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 1));
+    try std.testing.expectError(
+        ArgumentSpecificationError.InvalidRange,
+        ArgumentSpecification.mustBeInEndExclusiveRange(2, 1),
+    );
 }
 
 test "invalid argument range for end exclusive range 2" {
-    try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndExclusiveRange(2, 2));
+    try std.testing.expectError(
+        ArgumentSpecificationError.InvalidRange,
+        ArgumentSpecification.mustBeInEndExclusiveRange(2, 2),
+    );
 }
 
 test "invalid argument range for end inclusive range" {
-    try std.testing.expectError(ArgumentSpecificationError.InvalidRange, ArgumentSpecification.mustBeInEndInclusiveRange(2, 1));
+    try std.testing.expectError(
+        ArgumentSpecificationError.InvalidRange,
+        ArgumentSpecification.mustBeInEndInclusiveRange(2, 1),
+    );
 }
 
 test "print argument specification with zero arguments" {
@@ -131,9 +184,14 @@ test "print argument specification with zero arguments" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try ArgumentSpecification.mustBeZero().print(output_stream, std.testing.allocator);
+    try ArgumentSpecification.mustBeZero().print(
+        output_stream,
+        std.testing.allocator,
+    );
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts zero arguments").? > 0);
+    try std.testing.expect(
+        std.mem.indexOf(u8, buffer.items, "accepts zero arguments").? > 0,
+    );
 }
 
 test "print argument specification with minimum arguments" {
@@ -143,9 +201,14 @@ test "print argument specification with minimum arguments" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try ArgumentSpecification.mustBeMinimum(2).print(output_stream, std.testing.allocator);
+    try ArgumentSpecification.mustBeMinimum(2).print(
+        output_stream,
+        std.testing.allocator,
+    );
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts minimum of 2 argument(s)").? > 0);
+    try std.testing.expect(
+        std.mem.indexOf(u8, buffer.items, "accepts minimum of 2 argument(s)").? > 0,
+    );
 }
 
 test "print argument specification with maximum arguments" {
@@ -155,9 +218,14 @@ test "print argument specification with maximum arguments" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try ArgumentSpecification.mustBeMaximum(3).print(output_stream, std.testing.allocator);
+    try ArgumentSpecification.mustBeMaximum(3).print(
+        output_stream,
+        std.testing.allocator,
+    );
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts maximum of 3 argument(s)").? > 0);
+    try std.testing.expect(
+        std.mem.indexOf(u8, buffer.items, "accepts maximum of 3 argument(s)").? > 0,
+    );
 }
 
 test "print argument specification with exact arguments" {
@@ -167,9 +235,14 @@ test "print argument specification with exact arguments" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try ArgumentSpecification.mustBeExact(5).print(output_stream, std.testing.allocator);
+    try ArgumentSpecification.mustBeExact(5).print(
+        output_stream,
+        std.testing.allocator,
+    );
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts exactly 5 argument(s)").? > 0);
+    try std.testing.expect(
+        std.mem.indexOf(u8, buffer.items, "accepts exactly 5 argument(s)").? > 0,
+    );
 }
 
 test "print argument specification with arguments in end exclusive range" {
@@ -179,9 +252,14 @@ test "print argument specification with arguments in end exclusive range" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try (try ArgumentSpecification.mustBeInEndExclusiveRange(3, 8)).print(output_stream, std.testing.allocator);
+    try (try ArgumentSpecification.mustBeInEndExclusiveRange(3, 8)).print(
+        output_stream,
+        std.testing.allocator,
+    );
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s), but less than 8 argument(s)").? > 0);
+    try std.testing.expect(
+        std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s), but less than 8 argument(s)").? > 0,
+    );
 }
 
 test "print argument specification with arguments in end inclusive range" {
@@ -191,7 +269,12 @@ test "print argument specification with arguments in end inclusive range" {
     const writer = buffer.writer().any();
 
     const output_stream = OutputStream.initStdErrWriter(writer);
-    try (try ArgumentSpecification.mustBeInEndInclusiveRange(3, 8)).print(output_stream, std.testing.allocator);
+    try (try ArgumentSpecification.mustBeInEndInclusiveRange(3, 8)).print(
+        output_stream,
+        std.testing.allocator,
+    );
 
-    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s) and at most 8 argument(s)").? > 0);
+    try std.testing.expect(
+        std.mem.indexOf(u8, buffer.items, "accepts at least 3 argument(s) and at most 8 argument(s)").? > 0,
+    );
 }
