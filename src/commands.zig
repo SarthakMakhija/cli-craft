@@ -187,8 +187,7 @@ pub const Command = struct {
         try command_line_parser.parse(&parsed_flags, &parsed_arguments, if (self.action == .executable) false else true);
 
         if (parsed_flags.containsHelp()) {
-            const help = CommandHelp.init(self, self.output_stream);
-            return try help.printHelp(self.allocator, &all_flags);
+            return try self.printHelp(&all_flags);
         }
 
         switch (self.action) {
@@ -241,6 +240,11 @@ pub const Command = struct {
                 .subcommand = subcommand_name,
             } });
         return sub_command;
+    }
+
+    fn printHelp(self: Command, all_flags: *Flags) !void {
+        const help = CommandHelp.init(self, self.output_stream);
+        return try help.printHelp(self.allocator, all_flags);
     }
 };
 
