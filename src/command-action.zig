@@ -22,13 +22,25 @@ pub const CommandAction = union(enum) {
         return .{ .subcommands = Commands.init(allocator, output_stream) };
     }
 
-    pub fn addSubcommand(self: *CommandAction, parent_command: *Command, subcommand: *Command, diagnostics: *Diagnostics) !void {
+    pub fn addSubcommand(
+        self: *CommandAction,
+        parent_command: *Command,
+        subcommand: *Command,
+        diagnostics: *Diagnostics,
+    ) !void {
         if (std.mem.eql(u8, subcommand.name, parent_command.name)) {
-            return diagnostics.reportAndFail(.{ .SubCommandNameSameAsParent = .{ .command = subcommand.name } });
+            return diagnostics.reportAndFail(.{
+                .SubCommandNameSameAsParent = .{ .command = subcommand.name },
+            });
         }
         switch (self.*) {
             .executable => {
-                return diagnostics.reportAndFail(.{ .SubCommandAddedToExecutable = .{ .command = parent_command.name, .subcommand = subcommand.name } });
+                return diagnostics.reportAndFail(.{
+                    .SubCommandAddedToExecutable = .{
+                        .command = parent_command.name,
+                        .subcommand = subcommand.name,
+                    },
+                });
             },
             .subcommands => {
                 subcommand.has_parent = true;
@@ -66,16 +78,34 @@ test "add a sub-command" {
         }
     }.run;
 
-    var parent_command = try Command.initParent("strings", "collection of string utilities", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var parent_command = try Command.initParent(
+        "strings",
+        "collection of string utilities",
+        OutputStream.initNoOperationOutputStream(),
+        std.testing.allocator,
+    );
     defer parent_command.deinit();
 
-    var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var command = try Command.init(
+        "stringer",
+        "manipulate strings",
+        runnable,
+        OutputStream.initNoOperationOutputStream(),
+        std.testing.allocator,
+    );
 
-    var command_action = try CommandAction.initSubcommands(std.testing.allocator, OutputStream.initNoOperationOutputStream());
+    var command_action = try CommandAction.initSubcommands(
+        std.testing.allocator,
+        OutputStream.initNoOperationOutputStream(),
+    );
     defer command_action.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try command_action.addSubcommand(&parent_command, &command, &diagnostics);
+    try command_action.addSubcommand(
+        &parent_command,
+        &command,
+        &diagnostics,
+    );
 
     const retrieved = command_action.subcommands.get("stringer");
 
@@ -90,17 +120,38 @@ test "attempt to initialize a parent command with a subcommand having the same n
         }
     }.run;
 
-    var parent_command = try Command.initParent("kubectl", "kubernetes entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var parent_command = try Command.initParent(
+        "kubectl",
+        "kubernetes entry point",
+        OutputStream.initNoOperationOutputStream(),
+        std.testing.allocator,
+    );
     defer parent_command.deinit();
 
-    var command_action = try CommandAction.initSubcommands(std.testing.allocator, OutputStream.initNoOperationOutputStream());
+    var command_action = try CommandAction.initSubcommands(
+        std.testing.allocator,
+        OutputStream.initNoOperationOutputStream(),
+    );
     defer command_action.deinit();
 
-    var get_command = try Command.init("kubectl", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var get_command = try Command.init(
+        "kubectl",
+        "get objects",
+        runnable,
+        OutputStream.initNoOperationOutputStream(),
+        std.testing.allocator,
+    );
     defer get_command.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try std.testing.expectError(CommandAddError.SubCommandNameSameAsParent, command_action.addSubcommand(&parent_command, &get_command, &diagnostics));
+    try std.testing.expectError(
+        CommandAddError.SubCommandNameSameAsParent,
+        command_action.addSubcommand(
+            &parent_command,
+            &get_command,
+            &diagnostics,
+        ),
+    );
 
     const diagnostic_type = diagnostics.diagnostics_type.?.SubCommandNameSameAsParent;
     try std.testing.expectEqualStrings("kubectl", diagnostic_type.command);
@@ -113,17 +164,33 @@ test "attempt to add a sub-command to an executable command" {
         }
     }.run;
 
-    var parent_command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var parent_command = try Command.init(
+        "stringer",
+        "manipulate strings",
+        runnable,
+        OutputStream.initNoOperationOutputStream(),
+        std.testing.allocator,
+    );
     defer parent_command.deinit();
 
-    var command = try Command.init("reverse", "reverse string", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    var command = try Command.init(
+        "reverse",
+        "reverse string",
+        runnable,
+        OutputStream.initNoOperationOutputStream(),
+        std.testing.allocator,
+    );
     defer command.deinit();
 
     var command_action = CommandAction.initExecutable(runnable);
     defer command_action.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try std.testing.expectError(CommandAddError.SubCommandAddedToExecutable, command_action.addSubcommand(&parent_command, &command, &diagnostics));
+    try std.testing.expectError(CommandAddError.SubCommandAddedToExecutable, command_action.addSubcommand(
+        &parent_command,
+        &command,
+        &diagnostics,
+    ));
 
     const diagnostic_type = diagnostics.diagnostics_type.?.SubCommandAddedToExecutable;
     try std.testing.expectEqualStrings("stringer", diagnostic_type.command);
