@@ -89,18 +89,16 @@ pub const CliCraft = struct {
         description: []const u8,
         executable: CommandFn,
     ) !void {
-        try self.addCommand(
-            try self.newExecutableCommand(name, description, executable),
-        );
+        var command = try self.newExecutableCommand(name, description, executable);
+        try self.addCommand(&command);
     }
 
     pub fn addParentCommand(self: *CliCraft, name: []const u8, description: []const u8) !void {
-        try self.addCommand(
-            self.newParentCommand(name, description),
-        );
+        const command = try self.newParentCommand(name, description);
+        try self.addCommand(&command);
     }
 
-    pub fn addCommand(self: *CliCraft, command: Command) !void {
+    pub fn addCommand(self: *CliCraft, command: *Command) !void {
         var diagnostics: Diagnostics = .{};
 
         self.commands.add_disallow_child(command, &diagnostics) catch |err| {
@@ -220,7 +218,7 @@ test "execute an executable command with arguments and flags" {
         FlagValue.type_int64(25),
     ).withShortName('t').build());
 
-    try cliCraft.addCommand(command);
+    try cliCraft.addCommand(&command);
     try cliCraft.executeWithArguments(
         &[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" },
     );
@@ -254,7 +252,7 @@ test "execute a command with subcommand" {
     );
     try kubectl_command.addSubcommand(&get_command);
 
-    try cliCraft.addCommand(kubectl_command);
+    try cliCraft.addCommand(&kubectl_command);
     try cliCraft.executeWithArguments(&[_][]const u8{ "kubectl", "get", "pods" });
 
     try std.testing.expectEqual(7, add_command_result);

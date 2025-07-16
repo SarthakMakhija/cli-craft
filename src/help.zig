@@ -313,8 +313,8 @@ test "print all commands" {
     var commands = Commands.init(std.testing.allocator, output_stream);
     defer commands.deinit();
 
-    try commands.add_disallow_child(stringer_command, &diagnostics);
-    try commands.add_disallow_child(reverse_command, &diagnostics);
+    try commands.add_disallow_child(&stringer_command, &diagnostics);
+    try commands.add_disallow_child(&reverse_command, &diagnostics);
 
     var commands_help = CommandsHelp.init(commands, null, output_stream);
 
@@ -352,8 +352,8 @@ test "print all commands with application description" {
     var commands = Commands.init(std.testing.allocator, output_stream);
     defer commands.deinit();
 
-    try commands.add_disallow_child(stringer_command, &diagnostics);
-    try commands.add_disallow_child(reverse_command, &diagnostics);
+    try commands.add_disallow_child(&stringer_command, &diagnostics);
+    try commands.add_disallow_child(&reverse_command, &diagnostics);
 
     var commands_help = CommandsHelp.init(commands, "application for manipulating strings", output_stream);
 
