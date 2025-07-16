@@ -85,6 +85,10 @@ pub const Command = struct {
 
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         var diagnostics: Diagnostics = .{};
+        self.determineConflictingFlagsWith(subcommand, &diagnostics) catch |err| {
+            diagnostics.log_using(self.output_stream);
+            return err;
+        };
         self.action.addSubcommand(self, subcommand, &diagnostics) catch |err| {
             diagnostics.log_using(self.output_stream);
             return err;
@@ -157,6 +161,26 @@ pub const Command = struct {
 
     fn isHelp(self: Command) bool {
         return std.mem.eql(u8, self.name, HelpCommandName);
+    }
+
+    fn determineConflictingFlagsWith(self: *Command, subcommand: *Command, diagnostics: *Diagnostics) !void {
+        if (self.persistent_flags) |persistent_flags| {
+            if (subcommand.persistent_flags) |subcommand_persistent_flags| {
+                const flag_conflict = persistent_flags.determineConflictWith(subcommand_persistent_flags);
+                if (flag_conflict.has_conflict) {
+                    return diagnostics.reportAndFail(
+                        flag_conflict.diagnostic_type(self.name, subcommand.name),
+                    );
+                }
+            }
+
+            const flag_conflict = persistent_flags.determineConflictWith(subcommand.local_flags);
+            if (flag_conflict.has_conflict) {
+                return diagnostics.reportAndFail(
+                    flag_conflict.diagnostic_type(self.name, subcommand.name),
+                );
+            }
+        }
     }
 
     //TODO: print deprecated message if the command is deprecated
@@ -524,6 +548,60 @@ test "initialize a parent command with subcommands" {
 
     try std.testing.expect(get_command.parent != null);
     try std.testing.expectEqualStrings("kubectl", get_command.parent.?.name);
+}
+
+test "attempt to add a subcommand with same flag as the parent's persistent flag but with different short name" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).withShortName('v').markPersistent().build());
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).withShortName('o').build());
+    defer get_command.deinit();
+
+    try std.testing.expectError(FlagErrors.FlagConflictDetected, kubectl_command.addSubcommand(&get_command));
+}
+
+test "attempt to add a subcommand with same flag short name as the parent's persistent short flag but with different long name" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addFlag(Flag.builder("priority", "Define priority", FlagType.boolean).withShortName('v').markPersistent().build());
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).withShortName('v').build());
+    defer get_command.deinit();
+
+    try std.testing.expectError(FlagErrors.FlagConflictDetected, kubectl_command.addSubcommand(&get_command));
+}
+
+test "attempt to add a subcommand with same flag as the parent's persistent flag but without short name" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).withShortName('v').markPersistent().build());
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try get_command.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build());
+    defer get_command.deinit();
+
+    try std.testing.expectError(FlagErrors.FlagConflictDetected, kubectl_command.addSubcommand(&get_command));
 }
 
 test "initialize an executable command with argument specification (1)" {
