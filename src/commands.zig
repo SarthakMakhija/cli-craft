@@ -46,6 +46,7 @@ pub const Command = struct {
     argument_specification: ?ArgumentSpecification = null,
     deprecated_message: ?[]const u8 = null,
     has_parent: bool = false,
+    frozen: bool = false,
     local_flags: Flags,
     persistent_flags: ?Flags = null,
     output_stream: OutputStream,
@@ -527,6 +528,23 @@ test "initialize an executable command with a couple of aliases" {
     try std.testing.expectEqual(aliases.len, 2);
     try std.testing.expectEqualStrings("str", aliases[0]);
     try std.testing.expectEqualStrings("strm", aliases[1]);
+}
+
+test "freeze a subcommand after adding it to a parent command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
+    try std.testing.expect(get_command.frozen);
 }
 
 test "initialize a parent command with subcommands" {
