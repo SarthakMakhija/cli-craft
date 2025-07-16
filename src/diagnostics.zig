@@ -73,6 +73,9 @@ pub const Diagnostics = struct {
             .CommandNotFound => |context| {
                 output_stream.printError("Error: Command '{s}' not found.\n", .{context.command}) catch {};
             },
+            .CommandAlreadyFrozen => |context| {
+                output_stream.printError("Error: Command '{s}' is already frozen. It cannot be modified after being added as a subcommand or to the top-level CLI.\n", .{context.command}) catch {};
+            },
         };
     }
 
@@ -100,6 +103,7 @@ pub const Diagnostics = struct {
             .CommandAliasAlreadyExists => CommandErrors.CommandAliasAlreadyExists,
             .MissingCommandNameToExecute => CommandErrors.MissingCommandNameToExecute,
             .CommandNotFound => CommandErrors.CommandNotFound,
+            .CommandAlreadyFrozen => CommandErrors.CommandAlreadyFrozen,
         };
     }
 };
@@ -185,6 +189,9 @@ pub const DiagnosticType = union(enum) {
     },
     MissingCommandNameToExecute: struct {},
     CommandNotFound: struct {
+        command: []const u8,
+    },
+    CommandAlreadyFrozen: struct {
         command: []const u8,
     },
 };

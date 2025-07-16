@@ -24,13 +24,14 @@ const prettytable = @import("prettytable");
 pub const HelpCommandName = "help";
 
 pub const CommandAddError = error{ ChildCommandAdded, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
+pub const CommandMutationError = error{CommandAlreadyFrozen};
 
 pub const CommandExecutionError = error{
     MissingCommandNameToExecute,
     CommandNotFound,
 };
 
-pub const CommandErrors = CommandAddError || CommandExecutionError || CommandParsingError;
+pub const CommandErrors = CommandAddError || CommandExecutionError || CommandParsingError || CommandMutationError;
 
 pub const CommandFnArguments = [][]const u8;
 pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
@@ -79,7 +80,8 @@ pub const Command = struct {
         };
     }
 
-    pub fn addAliases(self: *Command, aliases: CommandAliases) void {
+    pub fn addAliases(self: *Command, aliases: CommandAliases) !void {
+        try self.logOnMutationFailureIfFrozen();
         self.aliases = aliases;
     }
 
@@ -95,11 +97,14 @@ pub const Command = struct {
         };
     }
 
-    pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) void {
+    pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) !void {
+        try self.logOnMutationFailureIfFrozen();
         self.argument_specification = specification;
     }
 
     pub fn addFlag(self: *Command, flag: Flag) !void {
+        try self.logOnMutationFailureIfFrozen();
+
         var diagnostics: Diagnostics = .{};
         if (flag.persistent) {
             try self.ensureLocalFlagsDoNotContain(flag);
@@ -117,7 +122,8 @@ pub const Command = struct {
         }
     }
 
-    pub fn markDeprecated(self: *Command, deprecated_message: []const u8) void {
+    pub fn markDeprecated(self: *Command, deprecated_message: []const u8) !void {
+        try self.logOnMutationFailureIfFrozen();
         self.deprecated_message = deprecated_message;
     }
 
@@ -143,6 +149,22 @@ pub const Command = struct {
 
     fn freeze(self: *Command) void {
         self.frozen = true;
+    }
+
+    fn logOnMutationFailureIfFrozen(self: Command) !void {
+        var diagnostics: Diagnostics = .{};
+        self.failIfFrozen(&diagnostics) catch |err| {
+            diagnostics.log_using(self.output_stream);
+            return err;
+        };
+    }
+
+    fn failIfFrozen(self: Command, diagnostics: *Diagnostics) !void {
+        if (self.frozen) {
+            return diagnostics.reportAndFail(.{ .CommandAlreadyFrozen = .{
+                .command = self.name,
+            } });
+        }
     }
 
     fn ensureLocalFlagsDoNotContain(self: Command, flag: Flag) !void {
@@ -459,7 +481,7 @@ test "initialize a command with an executable action and mark it as deprecated" 
     }.run;
 
     var command = try Command.init("test", "test command", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.markDeprecated("This command is deprecated");
+    try command.markDeprecated("This command is deprecated");
     defer command.deinit();
 
     try std.testing.expectEqualStrings("This command is deprecated", command.deprecated_message.?);
@@ -503,7 +525,7 @@ test "initialize an executable command with an alias" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{"str"});
+    try command.addAliases(&[_]CommandAlias{"str"});
 
     defer command.deinit();
 
@@ -523,7 +545,7 @@ test "initialize an executable command with a couple of aliases" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
 
@@ -551,6 +573,74 @@ test "freeze a subcommand after adding it to a parent command" {
 
     try std.testing.expect(kubectl_command.action.subcommands.get("get") != null);
     try std.testing.expect(get_command.frozen);
+}
+
+test "attempt to set argument specification to frozen command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    try std.testing.expect(get_command.frozen);
+    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.setArgumentSpecification(ArgumentSpecification.mustBeExact(2)));
+}
+
+test "attempt to add flag to frozen command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    try std.testing.expect(get_command.frozen);
+    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.addFlag(Flag.builder("verbose", "define verbose output", FlagType.boolean).build()));
+}
+
+test "attempt to add aliases to frozen command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    try std.testing.expect(get_command.frozen);
+    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.addAliases(&[_]CommandAlias{ "str", "strm" }));
+}
+
+test "attempt to mark a frozen command deprecated" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    try std.testing.expect(get_command.frozen);
+    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.markDeprecated("deprecated command !"));
 }
 
 test "initialize a parent command with subcommands" {
@@ -614,7 +704,7 @@ test "initialize an executable command with argument specification (1)" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.setArgumentSpecification(ArgumentSpecification.mustBeMinimum(1));
+    try command.setArgumentSpecification(ArgumentSpecification.mustBeMinimum(1));
 
     defer command.deinit();
 
@@ -630,7 +720,7 @@ test "initialize an executable command with argument specification (2)" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.setArgumentSpecification(try ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
+    try command.setArgumentSpecification(try ArgumentSpecification.mustBeInEndInclusiveRange(1, 5));
 
     defer command.deinit();
 
@@ -836,7 +926,7 @@ test "attempt to execute a command with invalid argument specification and it sh
     const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
 
     var command = try Command.init("add", "add numbers", runnable, ouptut_stream, std.testing.allocator);
-    command.setArgumentSpecification(ArgumentSpecification.mustBeExact(2));
+    try command.setArgumentSpecification(ArgumentSpecification.mustBeExact(2));
     defer command.deinit();
 
     var diagnostics: Diagnostics = .{};
@@ -964,7 +1054,7 @@ test "print command aliases" {
     var writer = buffer.writer();
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initStdErrWriter(writer.any()), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
 
@@ -1296,7 +1386,7 @@ test "add a command with a name and an alias" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{"str"});
+    try command.addAliases(&[_]CommandAlias{"str"});
 
     var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
@@ -1318,7 +1408,7 @@ test "add a command with a name and a couple of aliases" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
@@ -1338,10 +1428,10 @@ test "print commands" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
 
     var add_command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    add_command.addAliases(&[_]CommandAlias{"sum"});
+    try add_command.addAliases(&[_]CommandAlias{"sum"});
 
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
@@ -1403,13 +1493,13 @@ test "attempt to add a command with an existing alias" {
     defer commands.deinit();
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.addAliases(&[_]CommandAlias{"str"});
+    try command.addAliases(&[_]CommandAlias{"str"});
 
     var diagnostics: Diagnostics = .{};
     try commands.add_disallow_child(&command, &diagnostics);
 
     var another_command = try Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    another_command.addAliases(&[_]CommandAlias{"str"});
+    try another_command.addAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
     try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_child(&another_command, &diagnostics));
@@ -1452,10 +1542,10 @@ test "execute help command" {
     }.run;
 
     var add_command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    add_command.addAliases(&[_][]const u8{"plus"});
+    try add_command.addAliases(&[_][]const u8{"plus"});
 
     var subtract_command = try Command.init("sub", "subtract numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    subtract_command.addAliases(&[_][]const u8{"minus"});
+    try subtract_command.addAliases(&[_][]const u8{"minus"});
 
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
@@ -1517,7 +1607,7 @@ test "attempt to execute a command with an unregistered command from command lin
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
+    try command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
 
     var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
@@ -1540,7 +1630,7 @@ test "attempt to execute a command with mismatch in argument specification" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
+    try command.setArgumentSpecification(ArgumentSpecification.mustBeMaximum(3));
 
     var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
