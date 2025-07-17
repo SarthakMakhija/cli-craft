@@ -13,12 +13,22 @@ pub const Flags = @import("flags.zig").Flags;
 pub const Flag = @import("flags.zig").Flag;
 pub const FlagType = @import("flags.zig").FlagType;
 pub const FlagValue = @import("flags.zig").FlagValue;
-pub const FlagErrors = @import("flags.zig").FlagErrors;
-pub const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 pub const ParsedFlags = @import("flags.zig").ParsedFlags;
 pub const ParsedFlag = @import("flags.zig").ParsedFlag;
-pub const CommandHelp = @import("help.zig").CommandHelp;
+
+pub const CommandAddError = @import("commands.zig").CommandAddError;
+pub const CommandExecutionError = @import("commands.zig").CommandExecutionError;
+pub const CommandMutationError = @import("commands.zig").CommandMutationError;
+pub const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
+pub const CommandErrors = @import("commands.zig").CommandErrors;
+
+pub const FlagAddError = @import("flags.zig").FlagAddError;
+pub const FlagValueGetError = @import("flags.zig").FlagValueGetError;
+pub const FlagValueConversionError = @import("flags.zig").FlagValueConversionError;
+pub const FlagErrors = @import("flags.zig").FlagErrors;
+
+pub const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 // Re-exporting public API structs end
 
