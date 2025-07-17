@@ -10,13 +10,12 @@
     - [X] Ubuntu-latest (x86_64)
     - [X] Windows-latest (x86_64)
 - [X] Hierarchical deinit in Commands
-- [ ] Support other properties in command like usage
 - [X] Add support for logging/printing
-- [ ] Add errors on console 
+- [X] Add errors on console 
     - [X] Pass a single ErrorLog
     - [ ] Revisit diagnostics across all the methods
-    - [ ] Add argument specification errors in diagnostics
-- [ ] Support Help for a command
+    - [X] Add argument specification errors in diagnostics
+- [X] Support Help for a command
     - [X] Add support for printing a single command
     - [X] Integrate printing
     - [X] Print command help on execution errors
