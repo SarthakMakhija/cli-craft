@@ -474,7 +474,7 @@ pub const ParsedFlags = struct {
         }
     }
 
-    pub fn merge(self: *ParsedFlags, other: *const ParsedFlags) !void {
+    pub fn mergeFrom(self: *ParsedFlags, other: *const ParsedFlags) !void {
         var other_iterator = other.flag_by_name.valueIterator();
         while (other_iterator.next()) |other_flag| {
             if (self.flag_by_name.contains(other_flag.name)) {
@@ -1152,7 +1152,7 @@ test "merge parsed flags containing unique flags" {
     try flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace")));
     try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
 
-    try flags.merge(&other_flags);
+    try flags.mergeFrom(&other_flags);
 
     try std.testing.expectEqualStrings("default_namespace", try flags.getString("namespace"));
     try std.testing.expect(try flags.getBoolean("verbose") == false);
@@ -1169,7 +1169,7 @@ test "merge parsed flags containing duplicate flags" {
     try other_flags.addFlag(ParsedFlag.init("verbose", FlagValue.type_boolean(false)));
     try other_flags.addFlag(ParsedFlag.init("namespace", FlagValue.type_string("default_namespace again")));
 
-    try flags.merge(&other_flags);
+    try flags.mergeFrom(&other_flags);
 
     try std.testing.expectEqualStrings("default_namespace", try flags.getString("namespace"));
     try std.testing.expect(try flags.getBoolean("verbose") == false);

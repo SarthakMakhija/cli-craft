@@ -229,7 +229,7 @@ pub const Command = struct {
         var parsed_flags = ParsedFlags.init(allocator);
         defer parsed_flags.deinit();
 
-        try parsed_flags.merge(inherited_parsed_flags);
+        try parsed_flags.mergeFrom(inherited_parsed_flags);
 
         var parsed_arguments = std.ArrayList([]const u8).init(allocator);
         defer parsed_arguments.deinit();
@@ -1288,6 +1288,87 @@ test "execute a command with child command passing flags and arguments with a lo
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "--timeout", "40", "get", "pods", "--verbose", "false" });
+    arguments.skipFirst();
+
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
+}
+
+test "execute a command with child command passing a local flag which is also inherited from parent" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqual(50, try flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+    try kubectl_command.addFlag(Flag.builder("priority", "Enable priority", FlagType.int64).markPersistent().build());
+
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--priority", "20", "get", "pods", "--priority", "50" });
+    arguments.skipFirst();
+
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
+}
+
+test "execute a command with child command passing a local flag which is also inherited from parent with default value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqual(75, try flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Enable priority", FlagValue.type_int64(100)).markPersistent().build());
+
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods", "--priority", "75" });
+    arguments.skipFirst();
+
+    var diagnostics: Diagnostics = .{};
+    try kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator);
+}
+
+test "execute a command with child command with a inherited flag from parent with default value" {
+    const runnable = struct {
+        pub fn run(flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            const argument = arguments[0];
+
+            try std.testing.expectEqualStrings("pods", argument);
+            try std.testing.expectEqual(100, try flags.getInt64("priority"));
+
+            return;
+        }
+    }.run;
+
+    var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+
+    var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Enable priority", FlagValue.type_int64(100)).markPersistent().build());
+
+    try kubectl_command.addSubcommand(&get_command);
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "get", "pods" });
     arguments.skipFirst();
 
     var diagnostics: Diagnostics = .{};
