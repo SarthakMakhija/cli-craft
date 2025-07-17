@@ -2,6 +2,8 @@ const std = @import("std");
 const FlagType = @import("flags.zig").FlagType;
 const FlagErrors = @import("flags.zig").FlagErrors;
 const CommandErrors = @import("commands.zig").CommandErrors;
+const ArgumentValidationError = @import("argument-specification.zig").ArgumentValidationError;
+const ArgumentSpecificationError = @import("argument-specification.zig").ArgumentSpecificationError;
 
 const OutputStream = @import("stream.zig").OutputStream;
 
@@ -76,6 +78,24 @@ pub const Diagnostics = struct {
             .CommandAlreadyFrozen => |context| {
                 output_stream.printError("Error: Command '{s}' is already frozen. It cannot be modified after being added as a subcommand or to the top-level CLI.\n", .{context.command}) catch {};
             },
+            .ArgumentsNotEqualToZero => |context| {
+                output_stream.printError("Error: Expected zero argument, received {d} argument(s).\n", .{context.actual_arguments}) catch {};
+            },
+            .ArgumentsLessThanMinimum => |context| {
+                output_stream.printError("Error: Expected minimum of {d} argument(s), received {d} argument(s).\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
+            },
+            .ArgumentsGreaterThanMaximum => |context| {
+                output_stream.printError("Error: Expected maximum of {d} argument(s), received {d} argument(s).\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
+            },
+            .ArgumentsNotMatchingExpected => |context| {
+                output_stream.printError("Error: Expected {d} argument(s), received {d} argument(s).\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
+            },
+            .ArgumentsNotInEndExclusiveRange => |context| {
+                output_stream.printError("Error: Expected at least {d} argument(s), but less than {d} argument(s), received {d} arguments.\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
+            },
+            .ArgumentsNotInEndInclusiveRange => |context| {
+                output_stream.printError("Error: Expected at least {d} argument(s), and at most {d} argument(s), received {d} arguments.\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
+            },
         };
     }
 
@@ -104,6 +124,12 @@ pub const Diagnostics = struct {
             .MissingCommandNameToExecute => CommandErrors.MissingCommandNameToExecute,
             .CommandNotFound => CommandErrors.CommandNotFound,
             .CommandAlreadyFrozen => CommandErrors.CommandAlreadyFrozen,
+            .ArgumentsNotEqualToZero => ArgumentValidationError.ArgumentsNotEqualToZero,
+            .ArgumentsLessThanMinimum => ArgumentValidationError.ArgumentsLessThanMinimum,
+            .ArgumentsGreaterThanMaximum => ArgumentValidationError.ArgumentsGreaterThanMaximum,
+            .ArgumentsNotMatchingExpected => ArgumentValidationError.ArgumentsNotMatchingExpected,
+            .ArgumentsNotInEndExclusiveRange => ArgumentValidationError.ArgumentsNotInEndExclusiveRange,
+            .ArgumentsNotInEndInclusiveRange => ArgumentValidationError.ArgumentsNotInEndInclusiveRange,
         };
     }
 };
@@ -193,5 +219,30 @@ pub const DiagnosticType = union(enum) {
     },
     CommandAlreadyFrozen: struct {
         command: []const u8,
+    },
+    ArgumentsNotEqualToZero: struct {
+        actual_arguments: usize,
+    },
+    ArgumentsLessThanMinimum: struct {
+        actual_arguments: usize,
+        expected_arguments: usize,
+    },
+    ArgumentsGreaterThanMaximum: struct {
+        actual_arguments: usize,
+        expected_arguments: usize,
+    },
+    ArgumentsNotMatchingExpected: struct {
+        actual_arguments: usize,
+        expected_arguments: usize,
+    },
+    ArgumentsNotInEndExclusiveRange: struct {
+        actual_arguments: usize,
+        minimum_arguments: usize,
+        maximum_arguments: usize,
+    },
+    ArgumentsNotInEndInclusiveRange: struct {
+        actual_arguments: usize,
+        minimum_arguments: usize,
+        maximum_arguments: usize,
     },
 };

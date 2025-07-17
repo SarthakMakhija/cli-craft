@@ -4,6 +4,8 @@ const OutputStream = @import("stream.zig").OutputStream;
 pub const ArgumentValidationError = error{ ArgumentsNotEqualToZero, ArgumentsLessThanMinimum, ArgumentsGreaterThanMaximum, ArgumentsNotMatchingExpected, ArgumentsNotInEndExclusiveRange, ArgumentsNotInEndInclusiveRange };
 pub const ArgumentSpecificationError = error{InvalidRange};
 
+const Diagnostics = @import("diagnostics.zig").Diagnostics;
+
 pub const ArgumentSpecification = union(enum) {
     zero: usize,
     minimum: usize,
@@ -42,25 +44,48 @@ pub const ArgumentSpecification = union(enum) {
         return .{ .endInclusive = .{ .min = min, .max = max } };
     }
 
-    pub fn validate(self: ArgumentSpecification, argument_count: usize) !void {
+    pub fn validate(
+        self: ArgumentSpecification,
+        argument_count: usize,
+        diagnostics: *Diagnostics,
+    ) !void {
         switch (self) {
             .zero => if (argument_count != 0) {
-                return ArgumentValidationError.ArgumentsNotEqualToZero;
+                return diagnostics.reportAndFail(.{ .ArgumentsNotEqualToZero = .{
+                    .actual_arguments = argument_count,
+                } });
             },
             .minimum => |expected_argument_count| if (argument_count < expected_argument_count) {
-                return ArgumentValidationError.ArgumentsLessThanMinimum;
+                return diagnostics.reportAndFail(.{ .ArgumentsLessThanMinimum = .{
+                    .expected_arguments = expected_argument_count,
+                    .actual_arguments = argument_count,
+                } });
             },
             .maximum => |expected_argument_count| if (argument_count > expected_argument_count) {
-                return ArgumentValidationError.ArgumentsGreaterThanMaximum;
+                return diagnostics.reportAndFail(.{ .ArgumentsGreaterThanMaximum = .{
+                    .expected_arguments = expected_argument_count,
+                    .actual_arguments = argument_count,
+                } });
             },
             .exact => |expected_argument_count| if (argument_count != expected_argument_count) {
-                return ArgumentValidationError.ArgumentsNotMatchingExpected;
+                return diagnostics.reportAndFail(.{ .ArgumentsNotMatchingExpected = .{
+                    .expected_arguments = expected_argument_count,
+                    .actual_arguments = argument_count,
+                } });
             },
             .endExclusive => |range| if (argument_count < range.min or argument_count >= range.max) {
-                return ArgumentValidationError.ArgumentsNotInEndExclusiveRange;
+                return diagnostics.reportAndFail(.{ .ArgumentsNotInEndExclusiveRange = .{
+                    .minimum_arguments = range.min,
+                    .maximum_arguments = range.max,
+                    .actual_arguments = argument_count,
+                } });
             },
             .endInclusive => |range| if (argument_count < range.min or argument_count > range.max) {
-                return ArgumentValidationError.ArgumentsNotInEndInclusiveRange;
+                return diagnostics.reportAndFail(.{ .ArgumentsNotInEndInclusiveRange = .{
+                    .minimum_arguments = range.min,
+                    .maximum_arguments = range.max,
+                    .actual_arguments = argument_count,
+                } });
             },
         }
     }
@@ -101,59 +126,95 @@ pub const ArgumentSpecification = union(enum) {
 };
 
 test "arguments are not zero" {
+    var diagnostics: Diagnostics = .{};
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsNotEqualToZero,
-        ArgumentSpecification.mustBeZero().validate(5),
+        ArgumentSpecification.mustBeZero().validate(5, &diagnostics),
     );
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsNotEqualToZero.actual_arguments);
 }
 
 test "arguments are less than the minimum" {
+    var diagnostics: Diagnostics = .{};
+
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsLessThanMinimum,
-        ArgumentSpecification.mustBeMinimum(10).validate(5),
+        ArgumentSpecification.mustBeMinimum(10).validate(5, &diagnostics),
     );
+
+    try std.testing.expectEqual(10, diagnostics.diagnostics_type.?.ArgumentsLessThanMinimum.expected_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsLessThanMinimum.actual_arguments);
 }
 
 test "arguments are greater than the maximum" {
+    var diagnostics: Diagnostics = .{};
+
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsGreaterThanMaximum,
-        ArgumentSpecification.mustBeMaximum(3).validate(5),
+        ArgumentSpecification.mustBeMaximum(3).validate(5, &diagnostics),
     );
+
+    try std.testing.expectEqual(3, diagnostics.diagnostics_type.?.ArgumentsGreaterThanMaximum.expected_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsGreaterThanMaximum.actual_arguments);
 }
 
 test "arguments are not matching the exact" {
+    var diagnostics: Diagnostics = .{};
+
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsNotMatchingExpected,
-        ArgumentSpecification.mustBeExact(3).validate(2),
+        ArgumentSpecification.mustBeExact(3).validate(2, &diagnostics),
     );
+
+    try std.testing.expectEqual(3, diagnostics.diagnostics_type.?.ArgumentsNotMatchingExpected.expected_arguments);
+    try std.testing.expectEqual(2, diagnostics.diagnostics_type.?.ArgumentsNotMatchingExpected.actual_arguments);
 }
 
 test "arguments are not in end-exclusive range, given argument count is equal to the maximum argument of the range" {
+    var diagnostics: Diagnostics = .{};
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsNotInEndExclusiveRange,
-        (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(5),
+        (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(5, &diagnostics),
     );
+
+    try std.testing.expectEqual(2, diagnostics.diagnostics_type.?.ArgumentsNotInEndExclusiveRange.minimum_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsNotInEndExclusiveRange.maximum_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsNotInEndExclusiveRange.actual_arguments);
 }
 
 test "arguments are not in end-exclusive range, given argument count is less than the minimum argument of the range" {
+    var diagnostics: Diagnostics = .{};
+
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsNotInEndExclusiveRange,
-        (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(1),
+        (try ArgumentSpecification.mustBeInEndExclusiveRange(2, 5)).validate(1, &diagnostics),
     );
+    try std.testing.expectEqual(2, diagnostics.diagnostics_type.?.ArgumentsNotInEndExclusiveRange.minimum_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsNotInEndExclusiveRange.maximum_arguments);
+    try std.testing.expectEqual(1, diagnostics.diagnostics_type.?.ArgumentsNotInEndExclusiveRange.actual_arguments);
 }
 
 test "arguments are not in end-inclusive range, given argument count is greater than the maximum argument of the range" {
+    var diagnostics: Diagnostics = .{};
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsNotInEndInclusiveRange,
-        (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(6),
+        (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(6, &diagnostics),
     );
+    try std.testing.expectEqual(2, diagnostics.diagnostics_type.?.ArgumentsNotInEndInclusiveRange.minimum_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsNotInEndInclusiveRange.maximum_arguments);
+    try std.testing.expectEqual(6, diagnostics.diagnostics_type.?.ArgumentsNotInEndInclusiveRange.actual_arguments);
 }
 
 test "arguments are not in end-inclusive range, given argument count is less than the minimum argument of the range" {
+    var diagnostics: Diagnostics = .{};
     try std.testing.expectError(
         ArgumentValidationError.ArgumentsNotInEndInclusiveRange,
-        (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(1),
+        (try ArgumentSpecification.mustBeInEndInclusiveRange(2, 5)).validate(1, &diagnostics),
     );
+
+    try std.testing.expectEqual(2, diagnostics.diagnostics_type.?.ArgumentsNotInEndInclusiveRange.minimum_arguments);
+    try std.testing.expectEqual(5, diagnostics.diagnostics_type.?.ArgumentsNotInEndInclusiveRange.maximum_arguments);
+    try std.testing.expectEqual(1, diagnostics.diagnostics_type.?.ArgumentsNotInEndInclusiveRange.actual_arguments);
 }
 
 test "invalid argument range for end exclusive range 1" {

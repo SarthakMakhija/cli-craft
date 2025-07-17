@@ -248,7 +248,7 @@ pub const Command = struct {
         switch (self.action) {
             .executable => |executable_fn| {
                 if (self.argument_specification) |argument_specification| {
-                    argument_specification.validate(parsed_arguments.items.len) catch |err| {
+                    argument_specification.validate(parsed_arguments.items.len, diagnostics) catch |err| {
                         diagnostics.log_using(self.output_stream);
                         try self.printHelp(&all_flags);
                         return err;
@@ -904,6 +904,8 @@ test "attempt to execute a command with an unregistered flag and it should print
     var diagnostics: Diagnostics = .{};
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "4", "--verbose" });
+    arguments.skipFirst();
+
     command.execute(&arguments, &diagnostics, std.testing.allocator) catch {};
 
     const diagnostics_type = diagnostics.diagnostics_type.?.FlagNotFound;
@@ -932,7 +934,12 @@ test "attempt to execute a command with invalid argument specification and it sh
     var diagnostics: Diagnostics = .{};
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "2", "4", "5" });
+    arguments.skipFirst();
+
     command.execute(&arguments, &diagnostics, std.testing.allocator) catch {};
+
+    try std.testing.expectEqual(3, diagnostics.diagnostics_type.?.ArgumentsNotMatchingExpected.actual_arguments);
+    try std.testing.expectEqual(2, diagnostics.diagnostics_type.?.ArgumentsNotMatchingExpected.expected_arguments);
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? >= 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "accepts exactly 2 argument(s)").? > 0);
@@ -961,6 +968,8 @@ test "attempt to execute a command with incorrect child command and it should pr
     var diagnostics: Diagnostics = .{};
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "delete", "pods" });
+    arguments.skipFirst();
+
     kubectl_command.execute(&arguments, &diagnostics, std.testing.allocator) catch {};
 
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "kubectl").? >= 0);
