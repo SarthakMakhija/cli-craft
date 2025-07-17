@@ -19,7 +19,7 @@
 - [ ] Support Help for a command
     - [X] Add support for printing a single command
     - [X] Integrate printing
-    - [ ] Print command help on execution errors
+    - [X] Print command help on execution errors
 - [X] Support Help for all commands
     - [X] Add support for printing all commands
     - [X] Integrate printing

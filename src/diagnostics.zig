@@ -20,13 +20,13 @@ pub const Diagnostics = struct {
                 output_stream.printError("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name }) catch {};
             },
             .FlagConflictSameLongNameDifferentShortName => |context| {
-                output_stream.printError("Error: Flag conflict detected, same long name but different short name, command: {s}, subcommand: {s}, flag {s}, short name: '{c}', other short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.short_name, context.other_short_name }) catch {};
+                output_stream.printError("Error: Flag conflict detected, same long name but different short name, command: '{s}', subcommand: '{s}', flag '{s}', short name: '{c}', other short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.short_name, context.other_short_name }) catch {};
             },
             .FlagConflictSameShortNameDifferentLongName => |context| {
-                output_stream.printError("Error: Flag conflict detected, same short name but different long name, command: {s}, subcommand: {s}, flag {s}, other flag name: {s}, short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.other_flag_name, context.short_name }) catch {};
+                output_stream.printError("Error: Flag conflict detected, same short name but different long name, command: '{s}', subcommand: '{s}', flag '{s}', other flag name: '{s}', short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.other_flag_name, context.short_name }) catch {};
             },
             .FlagConflictMissingShortName => |context| {
-                output_stream.printError("Error: Flag conflict detected, missing short name, command: {s}, subcommand: {s}, flag {s}, expected short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.expected_short_name }) catch {};
+                output_stream.printError("Error: Flag conflict detected, missing short name, command: '{s}', subcommand: '{s}', flag '{s}', expected short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.expected_short_name }) catch {};
             },
             .InvalidBoolean => |context| {
                 output_stream.printError("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name }) catch {};
