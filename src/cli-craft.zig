@@ -110,28 +110,22 @@ pub const CliCraft = struct {
     pub fn execute(self: *CliCraft) !void {
         var diagnostics: Diagnostics = .{};
 
-        self.commands.execute(
+        try self.commands.execute(
             self.options.application_description,
             Arguments.init(),
             &diagnostics,
-        ) catch |err| {
-            diagnostics.log_using(self.output_stream);
-            return err;
-        };
+        );
     }
 
     pub fn executeWithArguments(self: *CliCraft, arguments: []const []const u8) !void {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
 
-        self.commands.execute(
+        try self.commands.execute(
             self.options.application_description,
             &command_line_arguments,
             &diagnostics,
-        ) catch |err| {
-            diagnostics.log_using(self.output_stream);
-            return err;
-        };
+        );
     }
 
     pub fn deinit(self: *CliCraft) void {

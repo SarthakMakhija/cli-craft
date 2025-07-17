@@ -30,6 +30,7 @@
 - [X] Revalidate the design of FlagType and FlagValue
 - [X] Refactor CommandLineParser to build a state machine
 - [ ] Add tests to see the behavior of the same flag is passed from parent command and child command during execution
+- [X] Remove logging errors in execute / cli-craft.execute ..
 - [X] Ensure that the same flag can not be local and persistent
 - [X] Revalidate the arguments of run function in a command
 - [ ] Revisit export of public APIs + errors
