@@ -1,4 +1,9 @@
-### cli-craft
+<p align="center">
+  <img width="512" height="512" alt="CLI-craft logo" src="https://github.com/user-attachments/assets/92851868-5ae6-434d-afe6-8e8b731189f4" />
+</p>
+
+# cli-craft
+
 [![cli-craft CI](https://github.com/SarthakMakhija/cli-craft/actions/workflows/build.yml/badge.svg)](https://github.com/SarthakMakhija/cli-craft/actions/workflows/build.yml)
 
 CliCraft is a a **robust framework for building command-line interface (CLI) applications in Zig**. It provides a structured and idiomatic way to define commands, subcommands, flags, and arguments, ensuring a robust and user-friendly experience.
