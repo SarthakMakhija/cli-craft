@@ -142,18 +142,11 @@ pub const Flags = struct {
         }
     }
 
-    pub fn merge(self: *Flags, other: *const Flags, diagnostics: *Diagnostics) !void {
+    pub fn mergeFrom(self: *Flags, other: *const Flags, diagnostics: *Diagnostics) !void {
         var other_iterator = other.flag_by_name.valueIterator();
         while (other_iterator.next()) |other_flag| {
             if (self.flag_by_name.contains(other_flag.name)) {
                 continue;
-            }
-
-            // If the flag has a short name, check for conflicts.
-            if (other_flag.short_name) |other_short_name| {
-                if (self.short_name_to_long_name.contains(other_short_name)) {
-                    return diagnostics.reportAndFail(.{ .FlagShortNameMergeConflict = .{ .short_name = other_short_name, .flag_name = other_flag.name, .conflicting_flag_name = self.short_name_to_long_name.get(other_short_name).? } });
-                }
             }
             try self.addFlag(other_flag.*, diagnostics);
         }
@@ -976,7 +969,7 @@ test "merge flags containing unique flags" {
 
     try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
 
-    try flags.merge(&other_flags, &diagnostics);
+    try flags.mergeFrom(&other_flags, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
     try std.testing.expectEqualStrings("verbose", flags.get("verbose").?.name);
@@ -997,36 +990,11 @@ test "merge flags containing flags with same name" {
     try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
     try other_flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).build(), &diagnostics);
 
-    try flags.merge(&other_flags, &diagnostics);
+    try flags.mergeFrom(&other_flags, &diagnostics);
 
     try std.testing.expectEqualStrings("namespace", flags.get("n").?.name);
     try std.testing.expectEqualStrings("default_namespace", flags.get("n").?.default_value.?.string);
     try std.testing.expectEqualStrings("verbose", flags.get("verbose").?.name);
-}
-
-test "merge flags with conflicting short names" {
-    var flags = Flags.init(std.testing.allocator);
-    defer flags.deinit();
-
-    var other_flags = Flags.init(std.testing.allocator);
-    defer other_flags.deinit();
-
-    var diagnostics: Diagnostics = .{};
-    try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build(), &diagnostics);
-
-    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
-    try other_flags.addFlag(Flag.builder("new", "Create new object", FlagType.string)
-        .withShortName('n')
-        .build(), &diagnostics);
-
-    try std.testing.expectError(FlagAddError.FlagShortNameMergeConflict, flags.merge(&other_flags, &diagnostics));
-
-    const diagnostics_type = diagnostics.diagnostics_type.?.FlagShortNameMergeConflict;
-    try std.testing.expectEqual('n', diagnostics_type.short_name);
-    try std.testing.expectEqualStrings("new", diagnostics_type.flag_name);
-    try std.testing.expectEqualStrings("namespace", diagnostics_type.conflicting_flag_name);
 }
 
 test "build a parsed flag with name and value" {

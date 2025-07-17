@@ -279,12 +279,12 @@ pub const Command = struct {
 
     fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags, should_merge_local_flags: bool, diagnostics: *Diagnostics) !void {
         if (should_merge_local_flags) {
-            try target_flags.merge(&self.local_flags, diagnostics);
+            try target_flags.mergeFrom(&self.local_flags, diagnostics);
         }
         if (self.persistent_flags) |persistent_flags| {
-            try target_flags.merge(&persistent_flags, diagnostics);
+            try target_flags.mergeFrom(&persistent_flags, diagnostics);
         }
-        try target_flags.merge(inherited_flags, diagnostics);
+        try target_flags.mergeFrom(inherited_flags, diagnostics);
     }
 
     fn get_subcommand(self: Command, parsed_arguments: *std.ArrayList([]const u8), sub_commands: Commands, diagnostics: *Diagnostics) !Command {
