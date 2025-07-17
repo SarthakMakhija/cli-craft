@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const ArgumentsError = error{
+pub const ArgumentsError = error{
     NoArgumentsProvided,
     InvalidArgumentsSetup,
 };

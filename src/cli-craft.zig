@@ -28,6 +28,8 @@ pub const FlagValueGetError = @import("flags.zig").FlagValueGetError;
 pub const FlagValueConversionError = @import("flags.zig").FlagValueConversionError;
 pub const FlagErrors = @import("flags.zig").FlagErrors;
 
+pub const ArgumentsError = @import("arguments.zig").ArgumentsError;
+
 pub const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
 // Re-exporting public API structs end
