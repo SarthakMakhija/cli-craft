@@ -3,6 +3,18 @@
 
 CliCraft is a a **robust framework for building command-line interface (CLI) applications in Zig**. It provides a structured and idiomatic way to define commands, subcommands, flags, and arguments, ensuring a robust and user-friendly experience.
 
+### Getting Started
+
+Coming soon
+
+### Usage
+
+Coming soon
+
+### Examples
+
+Coming soon
+
 ### Features
 
 - **Command Parsing and Execution:** Seamlessly parse and execute commands based on user input.
