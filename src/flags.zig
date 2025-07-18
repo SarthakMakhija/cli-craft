@@ -111,8 +111,6 @@ pub const Flags = struct {
             self.allocator,
         ).withShortName(HelpFlagShortName[0]).build();
 
-        // defer help_flag.deinit();
-
         try self.flag_by_name.put(help_flag.name, help_flag);
         try self.short_name_to_long_name.put(HelpFlagShortName[0], HelpFlagName);
     }

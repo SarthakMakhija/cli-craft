@@ -9,7 +9,6 @@ pub const CommandAliases = @import("commands.zig").CommandAliases;
 
 pub const ArgumentSpecification = @import("argument-specification.zig");
 
-pub const Flags = @import("flags.zig").Flags;
 pub const Flag = @import("flags.zig").Flag;
 pub const FlagType = @import("flags.zig").FlagType;
 pub const FlagValue = @import("flags.zig").FlagValue;
