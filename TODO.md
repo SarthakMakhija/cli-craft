@@ -35,6 +35,7 @@
 - [X] Revalidate the arguments of run function in a command
 - [X] Revisit export of public APIs + errors
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
+- [ ] Convert aliases to list
 - [X] An entrypoint of the cli-craft library
 - [ ] An example project
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned

@@ -80,11 +80,6 @@ pub const Command = struct {
         };
     }
 
-    pub fn addAliases(self: *Command, aliases: CommandAliases) !void {
-        try self.logOnMutationFailureIfFrozen();
-        self.aliases = aliases;
-    }
-
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         var diagnostics: Diagnostics = .{};
         self.determineConflictingFlagsWith(subcommand, &diagnostics) catch |err| {
@@ -95,6 +90,11 @@ pub const Command = struct {
             diagnostics.log_using(self.output_stream);
             return err;
         };
+    }
+
+    pub fn setAliases(self: *Command, aliases: CommandAliases) !void {
+        try self.logOnMutationFailureIfFrozen();
+        self.aliases = aliases;
     }
 
     pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) !void {
@@ -510,7 +510,7 @@ test "initialize an executable command with an alias" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{"str"});
+    try command.setAliases(&[_]CommandAlias{"str"});
 
     defer command.deinit();
 
@@ -530,7 +530,7 @@ test "initialize an executable command with a couple of aliases" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.setAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
 
@@ -625,7 +625,7 @@ test "attempt to add aliases to frozen command" {
     try kubectl_command.addSubcommand(&get_command);
 
     try std.testing.expect(get_command.frozen);
-    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.addAliases(&[_]CommandAlias{ "str", "strm" }));
+    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.setAliases(&[_]CommandAlias{ "str", "strm" }));
 }
 
 test "initialize a parent command with subcommands" {
@@ -1064,7 +1064,7 @@ test "print command aliases" {
     var writer = buffer.writer();
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initStdErrWriter(writer.any()), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.setAliases(&[_]CommandAlias{ "str", "strm" });
 
     defer command.deinit();
 
@@ -1477,7 +1477,7 @@ test "add a command with a name and an alias" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{"str"});
+    try command.setAliases(&[_]CommandAlias{"str"});
 
     var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
@@ -1499,7 +1499,7 @@ test "add a command with a name and a couple of aliases" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.setAliases(&[_]CommandAlias{ "str", "strm" });
 
     var commands = Commands.init(std.testing.allocator, OutputStream.initNoOperationOutputStream());
     defer commands.deinit();
@@ -1519,10 +1519,10 @@ test "print commands" {
     }.run;
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{ "str", "strm" });
+    try command.setAliases(&[_]CommandAlias{ "str", "strm" });
 
     var add_command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try add_command.addAliases(&[_]CommandAlias{"sum"});
+    try add_command.setAliases(&[_]CommandAlias{"sum"});
 
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
@@ -1584,13 +1584,13 @@ test "attempt to add a command with an existing alias" {
     defer commands.deinit();
 
     var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addAliases(&[_]CommandAlias{"str"});
+    try command.setAliases(&[_]CommandAlias{"str"});
 
     var diagnostics: Diagnostics = .{};
     try commands.add_disallow_child(&command, &diagnostics);
 
     var another_command = try Command.init("fast string", "manipulate strings with a blazing fast speed", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try another_command.addAliases(&[_]CommandAlias{"str"});
+    try another_command.setAliases(&[_]CommandAlias{"str"});
     defer another_command.deinit();
 
     try std.testing.expectError(CommandAddError.CommandAliasAlreadyExists, commands.add_disallow_child(&another_command, &diagnostics));
@@ -1633,10 +1633,10 @@ test "execute help command" {
     }.run;
 
     var add_command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try add_command.addAliases(&[_][]const u8{"plus"});
+    try add_command.setAliases(&[_][]const u8{"plus"});
 
     var subtract_command = try Command.init("sub", "subtract numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try subtract_command.addAliases(&[_][]const u8{"minus"});
+    try subtract_command.setAliases(&[_][]const u8{"minus"});
 
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
