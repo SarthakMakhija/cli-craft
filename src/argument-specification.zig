@@ -6,30 +6,61 @@ pub const ArgumentSpecificationError = error{InvalidRange};
 
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
+/// Defines the rules for a command's positional arguments.
+/// This union allows specifying various constraints on the number of arguments a command expects.
 pub const ArgumentSpecification = union(enum) {
+    /// Specifies that the command accepts exactly zero arguments.
     zero: usize,
+    /// Specifies that the command accepts a minimum number of arguments.
     minimum: usize,
+    /// Specifies that the command accepts a maximum number of arguments.
     maximum: usize,
+    /// Specifies that the command accepts an exact number of arguments.
     exact: usize,
+    /// Specifies a range of arguments where the minimum is inclusive and the maximum is exclusive.
+    /// (e.g., `min` arguments up to, but not including, `max` arguments).
     endExclusive: struct { min: usize, max: usize },
+    /// Specifies a range of arguments where both the minimum and maximum are inclusive.
+    /// (e.g., `min` arguments up to and including `max` arguments).
     endInclusive: struct { min: usize, max: usize },
 
+    /// Creates an `ArgumentSpecification` that requires exactly zero arguments.
     pub fn mustBeZero() ArgumentSpecification {
         return .{ .zero = 0 };
     }
 
+    /// Creates an `ArgumentSpecification` that requires at least a specified minimum number of arguments.
+    ///
+    /// Parameters:
+    ///   count: The minimum number of arguments required.
     pub fn mustBeMinimum(count: usize) ArgumentSpecification {
         return .{ .minimum = count };
     }
 
+    /// Creates an `ArgumentSpecification` that accepts at most a specified maximum number of arguments.
+    ///
+    /// Parameters:
+    ///   count: The maximum number of arguments allowed.
     pub fn mustBeMaximum(count: usize) ArgumentSpecification {
         return .{ .maximum = count };
     }
 
+    /// Creates an `ArgumentSpecification` that requires precisely a specified number of arguments.
+    ///
+    /// Parameters:
+    ///   count: The exact number of arguments required.
     pub fn mustBeExact(count: usize) ArgumentSpecification {
         return .{ .exact = count };
     }
 
+    /// Creates an `ArgumentSpecification` for a range where the minimum is inclusive and the maximum is exclusive.
+    ///
+    /// Parameters:
+    ///   min: The minimum number of arguments (inclusive).
+    ///   max: The maximum number of arguments (exclusive).
+    ///
+    /// Returns:
+    ///   An `ArgumentSpecification` or an ArgumentSpecificationError if `max` is not greater than `min`.
     pub fn mustBeInEndExclusiveRange(min: usize, max: usize) !ArgumentSpecification {
         if (max <= min) {
             return ArgumentSpecificationError.InvalidRange;
@@ -37,6 +68,14 @@ pub const ArgumentSpecification = union(enum) {
         return .{ .endExclusive = .{ .min = min, .max = max } };
     }
 
+    /// Creates an `ArgumentSpecification` for a range where both the minimum and maximum are inclusive.
+    ///
+    /// Parameters:
+    ///   min: The minimum number of arguments (inclusive).
+    ///   max: The maximum number of arguments (inclusive).
+    ///
+    /// Returns:
+    ///   An `ArgumentSpecification` or an ArgumentSpecificationError if `max` is less than `min`.
     pub fn mustBeInEndInclusiveRange(min: usize, max: usize) !ArgumentSpecification {
         if (max < min) {
             return ArgumentSpecificationError.InvalidRange;
@@ -44,6 +83,14 @@ pub const ArgumentSpecification = union(enum) {
         return .{ .endInclusive = .{ .min = min, .max = max } };
     }
 
+    /// Validates if the given `argument_count` adheres to this `ArgumentSpecification`.
+    ///
+    /// Parameters:
+    ///   argument_count: The actual number of arguments provided.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting validation errors.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if the argument count does not meet the specification.
     pub fn validate(
         self: ArgumentSpecification,
         argument_count: usize,
@@ -90,6 +137,11 @@ pub const ArgumentSpecification = union(enum) {
         }
     }
 
+    /// Prints a human-readable description of this argument specification to the output stream.
+    ///
+    /// Parameters:
+    ///   output_stream: The `OutputStream` to write the description to.
+    ///   allocator: The allocator to use for temporary string formatting.
     pub fn print(self: ArgumentSpecification, output_stream: OutputStream, allocator: std.mem.Allocator) !void {
         try output_stream.print("Argument Specification:\n", .{});
         const result: []const u8 = switch (self) {
