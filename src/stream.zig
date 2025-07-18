@@ -1,10 +1,23 @@
 const std = @import("std");
 const prettytable = @import("prettytable");
 
+/// A utility struct for managing and directing standard output and error output.
+///
+/// This provides a unified interface for printing messages and tables,
+/// abstracting away the underlying `std.io.AnyWriter` instances. It supports
+/// optional writers, allowing for "no-operation" streams for testing or
+/// silent execution.
 pub const OutputStream = struct {
+    /// The writer for standard output. Can be `null` if no output is desired.
     out_writer: ?std.io.AnyWriter,
+    /// The writer for error output. Can be `null` if no error output is desired.
     err_writer: ?std.io.AnyWriter,
 
+    /// Initializes an `OutputStream` with distinct writers for standard output and error output.
+    ///
+    /// Parameters:
+    ///   out_writer: The `std.io.AnyWriter` to use for standard output.
+    ///   err_writer: The `std.io.AnyWriter` to use for error output.
     pub fn init(out_writer: std.io.AnyWriter, err_writer: std.io.AnyWriter) OutputStream {
         return .{
             .out_writer = out_writer,
@@ -12,6 +25,10 @@ pub const OutputStream = struct {
         };
     }
 
+    /// Initializes an `OutputStream` where standard error output is directed to `std.io.getStdErr()`.
+    ///
+    /// Parameters:
+    ///   out_writer: The `std.io.AnyWriter` to use for standard output.
     pub fn initStdErrWriter(out_writer: std.io.AnyWriter) OutputStream {
         return .{
             .out_writer = out_writer,
@@ -19,6 +36,10 @@ pub const OutputStream = struct {
         };
     }
 
+    /// Initializes an `OutputStream` where standard output is directed to `std.io.getStdOut()`.
+    ///
+    /// Parameters:
+    ///   err_writer: The `std.io.AnyWriter` to use for error output.
     pub fn initStdOutWriter(err_writer: std.io.AnyWriter) OutputStream {
         return .{
             .out_writer = std.io.getStdOut().writer().any(),
@@ -26,6 +47,9 @@ pub const OutputStream = struct {
         };
     }
 
+    /// Initializes an `OutputStream` that performs no operations (i.e., discards all output).
+    ///
+    /// This is useful for testing scenarios where you want to suppress all output.
     pub fn initNoOperationOutputStream() OutputStream {
         return .{
             .out_writer = null,
@@ -33,24 +57,51 @@ pub const OutputStream = struct {
         };
     }
 
+    /// Prints a formatted message to the standard output stream.
+    ///
+    /// The message is formatted using `std.fmt.format`. If `out_writer` is null,
+    /// no operation occurs.
+    ///
+    /// Parameters:
+    ///   message: The format string.
+    ///   arguments: The arguments to format into the message.
     pub fn print(self: OutputStream, comptime message: []const u8, arguments: anytype) !void {
         if (self.out_writer) |writer| {
             try writer.print(message, arguments);
         }
     }
 
+    /// Writes a raw byte slice to the standard output stream.
+    ///
+    /// If `out_writer` is null, no operation occurs.
+    ///
+    /// Parameters:
+    ///   bytes: The byte slice to write.
     pub fn printAll(self: OutputStream, bytes: []const u8) !void {
         if (self.out_writer) |writer| {
             try writer.writeAll(bytes);
         }
     }
 
+    /// Prints a `prettytable.Table` to the standard output stream.
+    ///
+    /// If `out_writer` is null, no operation occurs.
+    ///
+    /// Parameters:
+    ///   table: A pointer to the `prettytable.Table` to print.
     pub fn printTable(self: OutputStream, table: *prettytable.Table) !void {
         if (self.out_writer) |writer| {
             try table.print(writer);
         }
     }
 
+    /// Prints a formatted message to the error output stream.
+    ///
+    /// The message is formatted using `std.fmt.format`. If `err_writer` is null, no operation occurs.
+    ///
+    /// Parameters:
+    ///   message: The format string.
+    ///   arguments: The arguments to format into the message.
     pub fn printError(self: OutputStream, comptime message: []const u8, arguments: anytype) !void {
         if (self.err_writer) |writer| {
             try writer.print(message, arguments);
