@@ -328,7 +328,7 @@ pub const Flag = struct {
         return FlagBuilder.init(name, description, flag_type);
     }
 
-    pub fn builder_with_default_value(name: []const u8, description: []const u8, flag_value: FlagValue) FlagBuilder {
+    pub fn builderWithDefaultValue(name: []const u8, description: []const u8, flag_value: FlagValue) FlagBuilder {
         return FlagBuilder.initWithDefaultValue(name, description, flag_value);
     }
 
@@ -554,7 +554,7 @@ test "build a boolean flag with name and description" {
 }
 
 test "build a boolean flag with short name and default value" {
-    const verbose_flag = Flag.builder_with_default_value("verbose", "Enable verbose output", FlagValue.type_boolean(false))
+    const verbose_flag = Flag.builderWithDefaultValue("verbose", "Enable verbose output", FlagValue.type_boolean(false))
         .withShortName('v')
         .build();
 
@@ -576,7 +576,7 @@ test "build a int64 flag with name and description" {
 }
 
 test "build a int64 flag with short name and default value" {
-    const count_flag = Flag.builder_with_default_value("count", "Count items", FlagValue.type_int64(10))
+    const count_flag = Flag.builderWithDefaultValue("count", "Count items", FlagValue.type_int64(10))
         .withShortName('c')
         .build();
 
@@ -598,7 +598,7 @@ test "build a string flag with name and description" {
 }
 
 test "build a string flag with short name and default value" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -664,7 +664,7 @@ test "normalize a flag name which is already normalized or is not a flag" {
 }
 
 test "attempt to add a flag with an existing name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -685,7 +685,7 @@ test "attempt to add a flag with an existing name" {
 }
 
 test "attempt to add a flag with an existing short name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -706,7 +706,7 @@ test "attempt to add a flag with an existing short name" {
 }
 
 test "add a flag and check its existence by name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -720,7 +720,7 @@ test "add a flag and check its existence by name" {
 }
 
 test "determine conflict based on missing short name for a flag name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -730,7 +730,7 @@ test "determine conflict based on missing short name for a flag name" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const other_namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .build();
 
     var other_flags = Flags.init(std.testing.allocator);
@@ -743,7 +743,7 @@ test "determine conflict based on missing short name for a flag name" {
 }
 
 test "determine conflict based on different short name for the same flag name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -753,7 +753,7 @@ test "determine conflict based on different short name for the same flag name" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const other_namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('p')
         .build();
 
@@ -768,7 +768,7 @@ test "determine conflict based on different short name for the same flag name" {
 }
 
 test "determine conflict based on different long name for the same flag short name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -778,7 +778,7 @@ test "determine conflict based on different long name for the same flag short na
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builder_with_default_value("verbose", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const other_namespace_flag = Flag.builderWithDefaultValue("verbose", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -794,7 +794,7 @@ test "determine conflict based on different long name for the same flag short na
 }
 
 test "has no conflict" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -804,7 +804,7 @@ test "has no conflict" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const other_namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -817,7 +817,7 @@ test "has no conflict" {
 }
 
 test "print flags" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("cli-craft"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("cli-craft"))
         .withShortName('n')
         .build();
 
@@ -864,7 +864,7 @@ test "add help flag" {
 }
 
 test "add a flag and check its existence by short name" {
-    const namespace_flag = Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build();
 
@@ -963,7 +963,7 @@ test "merge flags containing unique flags" {
     defer other_flags.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    try flags.addFlag(Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build(), &diagnostics);
 
@@ -983,7 +983,7 @@ test "merge flags containing flags with same name" {
     defer other_flags.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try flags.addFlag(Flag.builder_with_default_value("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
+    try flags.addFlag(Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
         .withShortName('n')
         .build(), &diagnostics);
 
@@ -1067,7 +1067,7 @@ test "add a parsed flag with default value" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
+    const timeout_flag = Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -1087,7 +1087,7 @@ test "attempt to add a parsed flag with default value when the flag is already p
     try parsed_flags.addFlag(ParsedFlag.init("timeout", FlagValue.type_int64(30)));
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
+    const timeout_flag = Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25))
         .build();
 
     var flags = Flags.init(std.testing.allocator);
@@ -1106,11 +1106,11 @@ test "add a couple of parsed flags with default value" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25))
+    const timeout_flag = Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25))
         .markPersistent()
         .build();
 
-    const verbose_flag = Flag.builder_with_default_value("verbose", "Display verbose output", FlagValue.type_boolean(false))
+    const verbose_flag = Flag.builderWithDefaultValue("verbose", "Display verbose output", FlagValue.type_boolean(false))
         .markPersistent()
         .build();
 

@@ -1106,7 +1106,7 @@ test "execute a command passing flags and arguments" {
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     try command.addFlag(Flag.builder("verbose", "Enable verbose output", FlagType.boolean).build());
     try command.addFlag(Flag.builder("priority", "Enable priority", FlagType.boolean).build());
-    try command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
+    try command.addFlag(Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build());
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
@@ -1196,7 +1196,7 @@ test "execute a command with child command passing flags and arguments with a pe
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
-    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("priority", "Define priority", FlagValue.type_int64(100)).markPersistent().build());
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1227,7 +1227,7 @@ test "execute a command with child command passing flags and arguments with a lo
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
-    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("priority", "Define priority", FlagValue.type_int64(100)).build());
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1259,8 +1259,8 @@ test "execute a command with child command passing flags and arguments with a lo
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
-    try kubectl_command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(20)).markPersistent().build());
-    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(20)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("priority", "Define priority", FlagValue.type_int64(100)).build());
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1292,8 +1292,8 @@ test "execute a command with child command passing flags and arguments with a lo
     defer kubectl_command.deinit();
 
     try kubectl_command.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).markPersistent().build());
-    try kubectl_command.addFlag(Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(20)).markPersistent().build());
-    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Define priority", FlagValue.type_int64(100)).build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(20)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("priority", "Define priority", FlagValue.type_int64(100)).build());
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "--timeout", "40", "get", "pods", "--verbose", "false" });
@@ -1346,7 +1346,7 @@ test "execute a command with child command passing a local flag which is also in
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
-    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Enable priority", FlagValue.type_int64(100)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("priority", "Enable priority", FlagValue.type_int64(100)).markPersistent().build());
 
     try kubectl_command.addSubcommand(&get_command);
 
@@ -1373,7 +1373,7 @@ test "execute a command with child command with a inherited flag from parent wit
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
-    try kubectl_command.addFlag(Flag.builder_with_default_value("priority", "Enable priority", FlagValue.type_int64(100)).markPersistent().build());
+    try kubectl_command.addFlag(Flag.builderWithDefaultValue("priority", "Enable priority", FlagValue.type_int64(100)).markPersistent().build());
 
     try kubectl_command.addSubcommand(&get_command);
 

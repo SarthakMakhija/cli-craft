@@ -500,7 +500,7 @@ test "parse a command line with flags having default value but with command line
         &diagnostics,
     );
     try flags.addFlag(
-        Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(),
+        Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(),
         &diagnostics,
     );
 
@@ -555,7 +555,7 @@ test "parse a command line with flags for a command which has child commands" {
         &diagnostics,
     );
     try flags.addFlag(
-        Flag.builder_with_default_value(
+        Flag.builderWithDefaultValue(
             "timeout",
             "Define timeout",
             FlagValue.type_int64(25),
@@ -603,7 +603,7 @@ test "parse a command line with flags containing explicit boolean value for a co
         &diagnostics,
     );
     try flags.addFlag(
-        Flag.builder_with_default_value("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(),
+        Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25)).withShortName('t').build(),
         &diagnostics,
     );
 

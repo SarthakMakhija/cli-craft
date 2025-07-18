@@ -218,7 +218,7 @@ test "execute an executable command with arguments and flags" {
         "Enable priority",
         FlagType.boolean,
     ).build());
-    try command.addFlag(Flag.builder_with_default_value(
+    try command.addFlag(Flag.builderWithDefaultValue(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(25),
