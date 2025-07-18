@@ -43,7 +43,7 @@ pub const Command = struct {
     description: []const u8,
     allocator: std.mem.Allocator,
     action: CommandAction,
-    aliases: ?CommandAliases = null,
+    aliases: ?std.ArrayList(CommandAlias) = null,
     argument_specification: ?ArgumentSpecification = null,
     has_parent: bool = false,
     frozen: bool = false,
@@ -94,7 +94,12 @@ pub const Command = struct {
 
     pub fn setAliases(self: *Command, aliases: CommandAliases) !void {
         try self.logOnMutationFailureIfFrozen();
-        self.aliases = aliases;
+        if (self.aliases == null) {
+            self.aliases = std.ArrayList(CommandAlias).init(self.allocator);
+        }
+        for (aliases) |alias| {
+            try self.aliases.?.append(alias);
+        }
     }
 
     pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) !void {
@@ -129,9 +134,9 @@ pub const Command = struct {
 
     pub fn printAliases(self: Command, table: *prettytable.Table) !void {
         if (self.aliases) |aliases| {
-            if (aliases.len > 0) {
+            if (aliases.items.len > 0) {
                 try self.output_stream.print("Aliases:\n", .{});
-                for (aliases) |alias| {
+                for (aliases.items) |alias| {
                     try table.addRow(&[_][]const u8{alias});
                 }
             }
@@ -144,6 +149,9 @@ pub const Command = struct {
         self.local_flags.deinit();
         if (self.persistent_flags) |*flags| {
             flags.deinit();
+        }
+        if (self.aliases) |aliases| {
+            aliases.deinit();
         }
     }
 
@@ -397,14 +405,14 @@ pub const Commands = struct {
 
             aliases_str = "";
             if (command.aliases) |aliases| {
-                if (aliases.len > 0) {
+                if (aliases.items.len > 0) {
                     var aliases_builder = std.ArrayList(u8).init(allocator);
                     defer aliases_builder.deinit();
 
                     var first_alias = true;
                     try aliases_builder.writer().writeAll("(");
 
-                    for (aliases) |alias| {
+                    for (aliases.items) |alias| {
                         if (!first_alias) {
                             try aliases_builder.writer().writeAll(", ");
                         }
@@ -434,7 +442,7 @@ pub const Commands = struct {
 
         try self.command_by_name.put(command.name, command.*);
         if (command.aliases) |aliases| {
-            for (aliases) |alias| {
+            for (aliases.items) |alias| {
                 try self.command_name_by_alias.put(alias, command.name);
             }
         }
@@ -445,7 +453,7 @@ pub const Commands = struct {
             return diagnostics.reportAndFail(.{ .CommandNameAlreadyExists = .{ .command = command.name } });
         }
         if (command.aliases) |aliases| {
-            for (aliases) |alias| {
+            for (aliases.items) |alias| {
                 if (self.command_name_by_alias.get(alias)) |other_command_name| {
                     return diagnostics.reportAndFail(.{ .CommandAliasAlreadyExists = .{
                         .alias = alias,
@@ -516,10 +524,10 @@ test "initialize an executable command with an alias" {
 
     try std.testing.expect(command.aliases != null);
 
-    const aliases: CommandAliases = command.aliases.?;
+    const aliases = command.aliases.?;
 
-    try std.testing.expectEqual(aliases.len, 1);
-    try std.testing.expectEqualStrings("str", aliases[0]);
+    try std.testing.expectEqual(aliases.items.len, 1);
+    try std.testing.expectEqualStrings("str", aliases.items[0]);
 }
 
 test "initialize an executable command with a couple of aliases" {
@@ -536,11 +544,11 @@ test "initialize an executable command with a couple of aliases" {
 
     try std.testing.expect(command.aliases != null);
 
-    const aliases: CommandAliases = command.aliases.?;
+    const aliases = command.aliases.?;
 
-    try std.testing.expectEqual(aliases.len, 2);
-    try std.testing.expectEqualStrings("str", aliases[0]);
-    try std.testing.expectEqualStrings("strm", aliases[1]);
+    try std.testing.expectEqual(aliases.items.len, 2);
+    try std.testing.expectEqualStrings("str", aliases.items[0]);
+    try std.testing.expectEqualStrings("strm", aliases.items[1]);
 }
 
 test "freeze a subcommand after adding it to a parent command" {
