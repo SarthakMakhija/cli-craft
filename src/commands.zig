@@ -21,37 +21,98 @@ const OutputStream = @import("stream.zig").OutputStream;
 
 const prettytable = @import("prettytable");
 
+/// The standard name for the built-in help command.
 pub const HelpCommandName = "help";
 
-pub const CommandAddError = error{ ChildCommandAdded, CommandNameAlreadyExists, CommandAliasAlreadyExists, SubCommandAddedToExecutable, SubCommandNameSameAsParent };
-pub const CommandMutationError = error{CommandAlreadyFrozen};
+/// Errors that can occur when adding commands or subcommands to the CLI structure.
+pub const CommandAddError = error{
+    /// An attempt was made to add a child command directly to the top-level CLI.
+    ChildCommandAdded,
+    /// A command with the same name already exists.
+    CommandNameAlreadyExists,
+    /// A command alias already exists for another command.
+    CommandAliasAlreadyExists,
+    /// An attempt was made to add a subcommand to a command defined as executable.
+    SubCommandAddedToExecutable,
+    /// A subcommand's name is identical to its parent command's name.
+    SubCommandNameSameAsParent,
+};
 
+/// Errors related to attempting to modify a command after it has been "frozen".
+pub const CommandMutationError = error{
+    /// An attempt was made to modify a command after it has been frozen (added to the CLI structure
+    /// or a command is added to a parent command).
+    CommandAlreadyFrozen,
+};
+
+/// Errors that can occur during the execution phase of commands.
 pub const CommandExecutionError = error{
+    /// No command name was provided for execution.
     MissingCommandNameToExecute,
+    /// A specified command was not found.
     CommandNotFound,
 };
 
+/// A union of all possible errors related to command operations.
 pub const CommandErrors = CommandAddError || CommandExecutionError || CommandParsingError || CommandMutationError;
 
+/// Type alias for the arguments passed to a command's executable function.
 pub const CommandFnArguments = [][]const u8;
+/// Type alias for a command's executable function.
+/// It takes `parsed_flags` and `parsed_arguments` as input and can return anyerror.
 pub const CommandFn = *const fn (flags: ParsedFlags, arguments: CommandFnArguments) anyerror!void;
+/// Type alias for a single command alias (a string slice).
 pub const CommandAlias = []const u8;
+/// Type alias for a slice of command aliases.
 pub const CommandAliases = []const CommandAlias;
 
+/// Represents a single command in the CLI application.
+/// A command can be either executable or a parent for subcommands.
+/// It encapsulates its name, description, action, associated flags, and argument specifications.
+/// Command is a mutable concept with methods like setUsage(..), setArgumentSpecification(..) etc.
+/// However, a command is frozen after it is added to the CLI structure (Commands) or a subcommand is frozen
+/// after it is added to a parent command.
+/// Any mutations on a frozen command result in an error.
 pub const Command = struct {
+    /// The primary name of the command.
     name: []const u8,
+    /// A brief description of the command's purpose.
     description: []const u8,
+    /// The allocator used for managing the command's internal string data and collections.
     allocator: std.mem.Allocator,
+    /// The action this command performs: either executable or a container for subcommands.
     action: CommandAction,
+    /// An optional list of alternative names for this command.
     aliases: ?std.ArrayList(CommandAlias) = null,
+    /// An optional specification defining the expected number and types of positional arguments.
     argument_specification: ?ArgumentSpecification = null,
+    /// A boolean indicating if this command is a subcommand (i.e., has a parent command).
     has_parent: bool = false,
+    /// A boolean indicating if this command has been "frozen" and can no longer be modified.
     frozen: bool = false,
+    /// Flags that are local to this command and are not inherited by its subcommands.
     local_flags: Flags,
+    /// Flags that are persistent and are inherited by this command's subcommands.
     persistent_flags: ?Flags = null,
+    /// The output stream to which this command directs its output and errors.
     output_stream: OutputStream,
+    /// An optional custom usage string for this command, overriding the default generated one.
     usage: ?[]const u8 = null,
 
+    /// Initializes a new executable command.
+    ///
+    /// This creates a command that, when invoked, will execute the provided `CommandFn`.
+    /// It automatically adds a default 'help' flag to the command's local flags.
+    ///
+    /// Parameters:
+    ///   name: The primary name of the command.
+    ///   description: A brief description of the command.
+    ///   executable: The function to execute when the command is run.
+    ///   output_stream: The output stream for this command.
+    ///   allocator: The allocator to use for command's internal data.
+    ///
+    /// Returns:
+    ///   A new `Command` instance configured as executable.
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn, output_stream: OutputStream, allocator: std.mem.Allocator) !Command {
         const cloned_name = try allocator.dupe(u8, name);
         errdefer allocator.free(cloned_name);
@@ -72,6 +133,19 @@ pub const Command = struct {
         };
     }
 
+    /// Initializes a new parent command (a command that can contain subcommands).
+    ///
+    /// This creates a command that acts as a container for other commands.
+    /// It automatically adds a default 'help' flag to the command's local flags.
+    ///
+    /// Parameters:
+    ///   name: The primary name of the parent command.
+    ///   description: A brief description of the parent command.
+    ///   output_stream: The output stream for this command.
+    ///   allocator: The allocator to use for command's internal data.
+    ///
+    /// Returns:
+    ///   A new `Command` instance configured as a parent.
     pub fn initParent(name: []const u8, description: []const u8, output_stream: OutputStream, allocator: std.mem.Allocator) !Command {
         const cloned_name = try allocator.dupe(u8, name);
         errdefer allocator.free(cloned_name);
@@ -92,6 +166,19 @@ pub const Command = struct {
         };
     }
 
+    /// Adds a subcommand to this command.
+    ///
+    /// This method performs various validation checks, including:
+    /// - Ensuring the subcommand's name is not the same as the parent's.
+    /// - Preventing subcommands from being added to executable commands.
+    /// - Checking for flag conflicts between the parent's persistent flags and the subcommand's flags.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the parent `Command` instance.
+    ///   subcommand: A pointer to the `Command` instance to add as a subcommand.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandAddError` or `FlagErrors` if a validation fails.
     pub fn addSubcommand(self: *Command, subcommand: *Command) !void {
         var diagnostics: Diagnostics = .{};
         self.determineConflictingFlagsWith(subcommand, &diagnostics) catch |err| {
@@ -104,6 +191,17 @@ pub const Command = struct {
         };
     }
 
+    /// Sets aliases for this command.
+    ///
+    /// Aliases provide alternative names by which the command can be invoked.
+    /// This method will duplicate the alias strings using the command's allocator.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Command` instance.
+    ///   aliases: A slice of `CommandAlias` (string slices) to set as aliases.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandMutationError` if the command is frozen.
     pub fn setAliases(self: *Command, aliases: CommandAliases) !void {
         try self.logOnMutationFailureIfFrozen();
         if (self.aliases == null) {
@@ -114,16 +212,48 @@ pub const Command = struct {
         }
     }
 
+    /// Sets the argument specification for this command.
+    ///
+    /// The `ArgumentSpecification` defines the expected number of positional arguments.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Command` instance.
+    ///   specification: The `ArgumentSpecification` to apply.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandMutationError` if the command is frozen.
     pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) !void {
         try self.logOnMutationFailureIfFrozen();
         self.argument_specification = specification;
     }
 
+    /// Sets a custom usage string for this command.
+    ///
+    /// This string will override the automatically generated usage message in help output.
+    /// The string will be duplicated using the command's allocator.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Command` instance.
+    ///   usage: The custom usage string.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandMutationError` if the command is frozen.
     pub fn setUsage(self: *Command, usage: []const u8) !void {
         try self.logOnMutationFailureIfFrozen();
         self.usage = try self.allocator.dupe(u8, usage);
     }
 
+    /// Adds a flag to this command.
+    ///
+    /// The flag can be either local or persistent, as determined by `flag.persistent`.
+    /// This method performs checks to prevent conflicts with existing flags.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Command` instance.
+    ///   flag: The `Flag` to add. Ownership of the flag's internal strings is transferred.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandMutationError` if frozen, or `FlagErrors` if a conflict occurs.
     pub fn addFlag(self: *Command, flag: Flag) !void {
         try self.logOnMutationFailureIfFrozen();
 
@@ -144,6 +274,16 @@ pub const Command = struct {
         }
     }
 
+    /// Prints the aliases of this command to a `prettytable.Table`.
+    ///
+    /// This is typically used by help generation functions.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///   table: A pointer to the `prettytable.Table` to which aliases will be added.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if printing to the output stream fails.
     pub fn printAliases(self: Command, table: *prettytable.Table) !void {
         if (self.aliases) |aliases| {
             if (aliases.items.len > 0) {
@@ -156,6 +296,14 @@ pub const Command = struct {
         try self.output_stream.printTable(table);
     }
 
+    /// Deinitializes the `Command` instance, freeing all associated allocated memory.
+    ///
+    /// This includes the command's name, description, usage string, action (subcommands if any),
+    /// local flags, persistent flags, and aliases.
+    /// This should be called when the `Command` instance is no longer needed to prevent memory leaks.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Command` instance.
     pub fn deinit(self: *Command) void {
         self.allocator.free(self.name);
         self.allocator.free(self.description);
@@ -175,10 +323,27 @@ pub const Command = struct {
         }
     }
 
+    /// Freezes the command, preventing any further modifications to its definition.
+    ///
+    /// This is typically called internally by `CliCraft` or `Commands` once a command
+    /// has been added to the CLI structure or a subcommand is added to a parent command.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Command` instance.
     fn freeze(self: *Command) void {
         self.frozen = true;
     }
 
+    /// Logs a `CommandMutationError.CommandAlreadyFrozen` diagnostic if the command is frozen.
+    ///
+    /// This is a convenience helper for mutation methods that need to check the frozen state
+    /// and log an error before returning.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///
+    /// Returns:
+    ///   `void` on success (not frozen), or a `CommandMutationError` if frozen.
     fn logOnMutationFailureIfFrozen(self: Command) !void {
         var diagnostics: Diagnostics = .{};
         self.failIfFrozen(&diagnostics) catch |err| {
@@ -187,6 +352,14 @@ pub const Command = struct {
         };
     }
 
+    /// Checks if the command is frozen and reports an error via `Diagnostics` if it is.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` if not frozen, or a `CommandMutationError.CommandAlreadyFrozen` if it is.
     fn failIfFrozen(self: Command, diagnostics: *Diagnostics) !void {
         if (self.frozen) {
             return diagnostics.reportAndFail(.{ .CommandAlreadyFrozen = .{
@@ -195,6 +368,17 @@ pub const Command = struct {
         }
     }
 
+    /// Ensures that the provided `flag` does not conflict with any flags already
+    /// present in this command's `local_flags` collection.
+    ///
+    /// This is an internal validation helper.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///   flag: The `Flag` to check against local flags.
+    ///
+    /// Returns:
+    ///   `void` on success (no conflict), or a `FlagErrors` if a conflict is detected.
     fn ensureLocalFlagsDoNotContain(self: Command, flag: Flag) !void {
         var diagnostics: Diagnostics = .{};
         self.local_flags.ensureFlagDoesNotExist(flag, &diagnostics) catch |err| {
@@ -203,6 +387,17 @@ pub const Command = struct {
         };
     }
 
+    /// Ensures that the provided `flag` does not conflict with any flags already
+    /// present in this command's `persistent_flags` collection.
+    ///
+    /// This is an internal validation helper.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///   flag: The `Flag` to check against persistent flags.
+    ///
+    /// Returns:
+    ///   `void` on success (no conflict), or a `FlagErrors` if a conflict is detected.
     fn ensurePersistentFlagsDoNotContain(self: Command, flag: Flag) !void {
         var diagnostics: Diagnostics = .{};
         if (self.persistent_flags) |persistent_flags| {
@@ -213,10 +408,29 @@ pub const Command = struct {
         }
     }
 
+    /// Checks if this command is the special "help" command.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///
+    /// Returns:
+    ///   `true` if the command's name matches `HelpCommandName`, `false` otherwise.
     fn isHelp(self: Command) bool {
         return std.mem.eql(u8, self.name, HelpCommandName);
     }
 
+    /// Determines if there are any flag conflicts between this (parent) command's persistent flags
+    /// and the provided subcommand's local or persistent flags.
+    ///
+    /// This is a crucial validation step when adding subcommands.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the parent `Command` instance.
+    ///   subcommand: A pointer to the `Command` instance being added as a subcommand.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting conflicts.
+    ///
+    /// Returns:
+    ///   `void` if no conflicts are found, or a `FlagErrors.FlagConflictDetected` if a conflict exists.
     fn determineConflictingFlagsWith(self: *Command, subcommand: *Command, diagnostics: *Diagnostics) !void {
         if (self.persistent_flags) |persistent_flags| {
             if (subcommand.persistent_flags) |subcommand_persistent_flags| {
@@ -237,6 +451,19 @@ pub const Command = struct {
         }
     }
 
+    /// Executes the command, starting the parsing and execution flow.
+    ///
+    /// This is an internal entry point, called by `Commands`.
+    /// It initializes necessary parsing structures and delegates to `executeInternal`.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance to execute.
+    ///   arguments: A pointer to the `Arguments` iterator.
+    ///   diagnostics: A pointer to the `Diagnostics` instance.
+    ///   allocator: The allocator to use for internal parsing structures.
+    ///
+    /// Returns:
+    ///   `void` on successful execution, or an error if parsing or execution fails.
     fn execute(self: Command, arguments: *Arguments, diagnostics: *Diagnostics, allocator: std.mem.Allocator) !void {
         var flags = Flags.init(allocator);
         defer flags.deinit();
@@ -247,6 +474,25 @@ pub const Command = struct {
         return try self.executeInternal(arguments, &flags, &parsed_flags, diagnostics, allocator);
     }
 
+    /// The core recursive execution logic for a command.
+    ///
+    /// This method handles:
+    /// - Merging inherited flags.
+    /// - Parsing command-line arguments and flags.
+    /// - Validating argument count.
+    /// - Executing the command's action (either `executable` or delegating to a subcommand).
+    /// - Printing help on error or if requested.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance to execute.
+    ///   arguments: A pointer to the `Arguments` iterator.
+    ///   inherited_flags: A pointer to `Flags` inherited from parent commands.
+    ///   inherited_parsed_flags: A pointer to `ParsedFlags` inherited from parent commands.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting.
+    ///   allocator: The allocator to use for temporary structures.
+    ///
+    /// Returns:
+    ///   `void` on successful execution, or an error if parsing or execution fails.
     fn executeInternal(self: Command, arguments: *Arguments, inherited_flags: *Flags, inherited_parsed_flags: *ParsedFlags, diagnostics: *Diagnostics, allocator: std.mem.Allocator) !void {
         var all_flags = Flags.init(allocator);
         defer all_flags.deinit();
@@ -304,6 +550,20 @@ pub const Command = struct {
         }
     }
 
+    /// Merges flags from different sources into a target `Flags` collection.
+    ///
+    /// This function is used to aggregate local, persistent, and inherited flags
+    /// for a command's execution context.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance whose flags are being merged.
+    ///   inherited_flags: A pointer to `Flags` inherited from parent commands.
+    ///   target_flags: A pointer to the `Flags` collection where merged flags will be stored.
+    ///   should_merge_local_flags: If `true`, `self.local_flags` will be merged.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors during merge.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if a merge operation fails.
     fn merge_flags(self: Command, inherited_flags: *Flags, target_flags: *Flags, should_merge_local_flags: bool, diagnostics: *Diagnostics) !void {
         if (should_merge_local_flags) {
             try target_flags.mergeFrom(&self.local_flags, diagnostics);
@@ -314,6 +574,18 @@ pub const Command = struct {
         try target_flags.mergeFrom(inherited_flags, diagnostics);
     }
 
+    /// Retrieves the subcommand to execute based on parsed arguments.
+    ///
+    /// Parameters:
+    ///   self: The parent `Command` instance.
+    ///   parsed_arguments: A pointer to the `std.ArrayList` containing parsed positional arguments.
+    ///   sub_commands: The `Commands` collection of available subcommands.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   The `Command` struct of the subcommand to execute.
+    ///   Returns `CommandParsingError.NoSubcommandProvided` if no subcommand argument is found.
+    ///   Returns `CommandParsingError.SubcommandNotAddedToParentCommand` if the subcommand is not found in the collection.
     fn get_subcommand(self: Command, parsed_arguments: *std.ArrayList([]const u8), sub_commands: Commands, diagnostics: *Diagnostics) !Command {
         if (parsed_arguments.items.len == 0) {
             return diagnostics.reportAndFail(.{ .NoSubcommandProvided = .{
@@ -333,6 +605,15 @@ pub const Command = struct {
         return sub_command;
     }
 
+    /// Internal helper to print the help message for this command.
+    /// Delegates the actual printing to `CommandHelp`.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance.
+    ///   all_flags: A pointer to the `Flags` collection containing all applicable flags for this command.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if printing fails.
     fn printHelp(self: Command, all_flags: *Flags) !void {
         const help = CommandHelp.init(self, self.output_stream);
         return try help.printHelp(self.allocator, all_flags);
