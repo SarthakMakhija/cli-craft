@@ -108,3 +108,59 @@ pub const OutputStream = struct {
         }
     }
 };
+
+test "print on the given writer" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+    try output_stream.print("{s}", .{"test message"});
+
+    try std.testing.expectEqualStrings("test message", buffer.items);
+}
+
+test "print on the given error writer" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+
+    const output_stream = OutputStream.initStdOutWriter(writer.any());
+    try output_stream.printError("{s}", .{"test message"});
+
+    try std.testing.expectEqualStrings("test message", buffer.items);
+}
+
+test "print all the given writer" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+    try output_stream.printAll("test message");
+
+    try std.testing.expectEqualStrings("test message", buffer.items);
+}
+
+test "print table" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    var writer = buffer.writer();
+
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
+
+    var table = prettytable.Table.init(std.testing.allocator);
+    defer table.deinit();
+
+    table.setFormat(prettytable.FORMAT_CLEAN);
+
+    try table.addRow(&[_][]const u8{ "help", "Show help for command" });
+    try output_stream.printTable(&table);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "help").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Show help for command").? >= 0);
+}
