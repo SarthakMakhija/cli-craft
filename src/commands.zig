@@ -53,12 +53,18 @@ pub const Command = struct {
     usage: ?[]const u8 = null,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn, output_stream: OutputStream, allocator: std.mem.Allocator) !Command {
+        const cloned_name = try allocator.dupe(u8, name);
+        errdefer allocator.free(cloned_name);
+
+        const cloned_description = try allocator.dupe(u8, description);
+        errdefer allocator.free(cloned_description);
+
         var local_flags = Flags.init(allocator);
         try local_flags.addHelp();
 
         return .{
-            .name = name,
-            .description = description,
+            .name = cloned_name,
+            .description = cloned_description,
             .allocator = allocator,
             .action = CommandAction.initExecutable(executable),
             .output_stream = output_stream,
@@ -67,12 +73,18 @@ pub const Command = struct {
     }
 
     pub fn initParent(name: []const u8, description: []const u8, output_stream: OutputStream, allocator: std.mem.Allocator) !Command {
+        const cloned_name = try allocator.dupe(u8, name);
+        errdefer allocator.free(cloned_name);
+
+        const cloned_description = try allocator.dupe(u8, description);
+        errdefer allocator.free(cloned_description);
+
         var local_flags = Flags.init(allocator);
         try local_flags.addHelp();
 
         return .{
-            .name = name,
-            .description = description,
+            .name = cloned_name,
+            .description = cloned_description,
             .allocator = allocator,
             .action = try CommandAction.initSubcommands(allocator, output_stream),
             .output_stream = output_stream,
@@ -98,7 +110,7 @@ pub const Command = struct {
             self.aliases = std.ArrayList(CommandAlias).init(self.allocator);
         }
         for (aliases) |alias| {
-            try self.aliases.?.append(alias);
+            try self.aliases.?.append(try self.allocator.dupe(u8, alias));
         }
     }
 
@@ -109,7 +121,7 @@ pub const Command = struct {
 
     pub fn setUsage(self: *Command, usage: []const u8) !void {
         try self.logOnMutationFailureIfFrozen();
-        self.usage = usage;
+        self.usage = try self.allocator.dupe(u8, usage);
     }
 
     pub fn addFlag(self: *Command, flag: Flag) !void {
@@ -145,12 +157,20 @@ pub const Command = struct {
     }
 
     pub fn deinit(self: *Command) void {
+        self.allocator.free(self.name);
+        self.allocator.free(self.description);
+        if (self.usage) |usage| {
+            self.allocator.free(usage);
+        }
         self.action.deinit();
         self.local_flags.deinit();
         if (self.persistent_flags) |*flags| {
             flags.deinit();
         }
         if (self.aliases) |aliases| {
+            for (aliases.items) |alias| {
+                self.allocator.free(alias);
+            }
             aliases.deinit();
         }
     }
