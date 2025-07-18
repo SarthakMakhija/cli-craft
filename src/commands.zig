@@ -620,12 +620,26 @@ pub const Command = struct {
     }
 };
 
+/// Represents a collection of commands, typically used for top-level commands
+/// or subcommands within a parent command.
+///
+/// This struct manages commands by their name and aliases, handles adding
+/// new commands, retrieving them, and orchestrating their execution.
 pub const Commands = struct {
+    /// A hash map storing `Command` structs, keyed by their name.
     command_by_name: std.StringHashMap(Command),
+    /// A hash map mapping command aliases to their primary command names.
     command_name_by_alias: std.StringHashMap([]const u8),
+    /// The allocator used for managing the memory of the hash maps and the commands they contain.
     allocator: std.mem.Allocator,
+    /// The output stream used for printing messages and errors.
     output_stream: OutputStream,
 
+    /// Initializes an empty `Commands` collection.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator to use for the internal hash maps.
+    ///   output_stream: The `OutputStream` to use for printing.
     pub fn init(
         allocator: std.mem.Allocator,
         output_stream: OutputStream,
@@ -638,6 +652,16 @@ pub const Commands = struct {
         };
     }
 
+    /// Adds a default "help" command to this collection.
+    ///
+    /// This help command is a simple executable that does nothing, as its
+    /// primary purpose is to trigger the help display logic in `CliCraft`.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Commands` instance.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if the help command cannot be added (e.g., name conflict).
     pub fn addHelp(self: *Commands) !void {
         const runnable = struct {
             pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
@@ -649,14 +673,44 @@ pub const Commands = struct {
         try self.command_by_name.put("help", command);
     }
 
+    /// Adds a command to this collection, allowing it to be a child command (i.e., have a parent).
+    ///
+    /// This is typically used when adding subcommands to a parent command.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Commands` instance.
+    ///   command: A pointer to the `Command` struct to add. The command will be frozen.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandAddError` if a conflict occurs.
     pub fn add_allow_child(self: *Commands, command: *Command, diagnostics: *Diagnostics) !void {
         return try self.add(command, true, diagnostics);
     }
 
+    /// Adds a command to this collection, disallowing it from being a child command.
+    ///
+    /// This is typically used when adding top-level commands to `CliCraft`.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Commands` instance.
+    ///   command: A pointer to the `Command` struct to add. The command will be frozen.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandAddError` if a conflict occurs or if `command` is already a child.
     pub fn add_disallow_child(self: *Commands, command: *Command, diagnostics: *Diagnostics) !void {
         return try self.add(command, false, diagnostics);
     }
 
+    /// Retrieves a `Command` from the collection by its name or alias.
+    ///
+    /// Parameters:
+    ///   self: The `Commands` instance to query.
+    ///   command_name_or_alias: The name or alias of the command to retrieve.
+    ///
+    /// Returns:
+    ///   A `Command` struct if found, or `null` if the command does not exist.
     pub fn get(self: Commands, command_name_or_alias: []const u8) ?Command {
         if (self.command_by_name.get(command_name_or_alias)) |command| {
             return command;
@@ -667,6 +721,20 @@ pub const Commands = struct {
         return null;
     }
 
+    /// Executes the appropriate command based on the provided arguments.
+    ///
+    /// This is the main execution entry point for a collection of commands (e.g., top-level commands).
+    /// It identifies the command to execute, handles the special "help" command,
+    /// and then delegates execution to the found command.
+    ///
+    /// Parameters:
+    ///   self: The `Commands` instance containing the commands to execute.
+    ///   application_description: An optional description for the entire application, used for general help.
+    ///   arguments: A pointer to the `Arguments` iterator providing command-line input.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on successful execution, or a `CommandExecutionError` if no command is provided or found.
     pub fn execute(self: Commands, application_description: ?[]const u8, arguments: *Arguments, diagnostics: *Diagnostics) !void {
         const command_name_or_alias = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
         const command = self.get(command_name_or_alias) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name_or_alias } });
@@ -678,6 +746,14 @@ pub const Commands = struct {
         return try command.execute(arguments, diagnostics, self.allocator);
     }
 
+    /// Deinitializes the `Commands` collection, freeing all associated allocated memory.
+    ///
+    /// This includes the internal hash maps and all `Command` structs (and their internal data)
+    /// stored within `command_by_name`.
+    /// This should be called when the `Commands` instance is no longer needed to prevent memory leaks.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Commands` instance.
     pub fn deinit(self: *Commands) void {
         var iterator = self.command_by_name.valueIterator();
         while (iterator.next()) |command| {
@@ -687,6 +763,17 @@ pub const Commands = struct {
         self.command_by_name.deinit();
     }
 
+    /// Prints a formatted table of all commands in this collection to the output stream.
+    ///
+    /// This is typically used by help generation functions.
+    ///
+    /// Parameters:
+    ///   self: The `Commands` instance to print.
+    ///   table: A pointer to a `prettytable.Table` instance to populate.
+    ///   allocator: The allocator to use for temporary string formatting within the table.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if printing fails.
     pub fn print(self: Commands, table: *prettytable.Table, allocator: std.mem.Allocator) !void {
         var column_values = std.ArrayList([]const u8).init(allocator);
         defer {
@@ -732,6 +819,21 @@ pub const Commands = struct {
         try self.output_stream.printTable(table);
     }
 
+    /// Internal helper function to add a command to the collection.
+    ///
+    /// This function performs core validation checks:
+    /// - Prevents adding a child command if `allow_child` is `false`.
+    /// - Ensures the command name and its aliases do not conflict with existing commands.
+    /// - Freezes the command after successful addition to prevent further modification.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `Commands` instance.
+    ///   command: A pointer to the `Command` struct to add.
+    ///   allow_child: If `true`, allows adding commands that have a parent.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on success, or a `CommandAddError` if a validation fails.
     fn add(self: *Commands, command: *Command, allow_child: bool, diagnostics: *Diagnostics) !void {
         if (!allow_child and command.has_parent) {
             return diagnostics.reportAndFail(.{ .ChildCommandAdded = .{ .command = command.name } });
@@ -749,6 +851,18 @@ pub const Commands = struct {
         }
     }
 
+    /// Internal helper function to ensure a command (by name and aliases) does not
+    /// already exist in this collection.
+    ///
+    /// This is used by `add` to prevent name and alias conflicts.
+    ///
+    /// Parameters:
+    ///   self: The `Commands` instance to check against.
+    ///   command: A pointer to the `Command` to check for existence.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on success (no conflict), or a `CommandAddError` if a conflict is detected.
     fn ensureCommandDoesNotExist(self: Commands, command: *Command, diagnostics: *Diagnostics) !void {
         if (self.command_by_name.contains(command.name)) {
             return diagnostics.reportAndFail(.{ .CommandNameAlreadyExists = .{ .command = command.name } });
