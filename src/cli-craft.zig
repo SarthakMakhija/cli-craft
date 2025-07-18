@@ -40,23 +40,46 @@ const OutputStream = @import("stream.zig").OutputStream;
 const FlagFactory = @import("flags.zig").FlagFactory;
 const FlagBuilder = @import("flags.zig").FlagBuilder;
 
+/// Global configuration options for the `CliCraft` application.
 pub const GlobalOptions = struct {
+    /// An optional description for the entire application, displayed in general help.
     application_description: ?[]const u8 = null,
+    /// The allocator to be used for all memory allocations within the `CliCraft` framework.
     allocator: std.mem.Allocator,
+    /// Options for error output, including the writer to which errors are logged.
     error_options: struct {
         writer: std.io.AnyWriter,
     },
+    /// Options for standard output, including the writer to which general output is directed.
     output_options: struct {
         writer: std.io.AnyWriter,
     },
 };
 
+/// The main entry point and orchestrator for building and executing command-line applications.
+///
+/// `CliCraft` manages commands, flags, arguments, and provides methods for parsing
+/// command-line input and executing the appropriate command.
 pub const CliCraft = struct {
+    /// The global configuration options for this `CliCraft` instance.
     options: GlobalOptions,
+    /// The collection of top-level commands managed by this `CliCraft` instance.
     commands: Commands,
+    /// A factory for creating `FlagBuilder` instances, ensuring consistent allocator usage.
     flag_factory: FlagFactory,
+    /// The unified output stream for standard and error output.
     output_stream: OutputStream,
 
+    /// Initializes a new `CliCraft` instance with the given global options.
+    ///
+    /// This sets up the internal command registry and the flag factory,
+    /// and automatically adds a default 'help' flag to the top-level commands.
+    ///
+    /// Parameters:
+    ///   options: The `GlobalOptions` for the application.
+    ///
+    /// Returns:
+    ///   A new `CliCraft` instance.
     pub fn init(options: GlobalOptions) !CliCraft {
         const output_stream = OutputStream.init(
             options.output_options.writer,
@@ -74,6 +97,15 @@ pub const CliCraft = struct {
         };
     }
 
+    /// Creates a new `Command` instance that is executable.
+    ///
+    /// Parameters:
+    ///   name: The name of the command.
+    ///   description: A brief description of the command's purpose.
+    ///   executable: The function to be executed when this command is invoked.
+    ///
+    /// Returns:
+    ///   A new `Command` instance configured as executable.
     pub fn newExecutableCommand(
         self: CliCraft,
         name: []const u8,
@@ -89,6 +121,14 @@ pub const CliCraft = struct {
         );
     }
 
+    /// Creates a new `Command` instance that acts as a parent for subcommands.
+    ///
+    /// Parameters:
+    ///   name: The name of the parent command.
+    ///   description: A brief description of the parent command's purpose.
+    ///
+    /// Returns:
+    ///   A new `Command` instance configured to hold subcommands.
     pub fn newParentCommand(self: CliCraft, name: []const u8, description: []const u8) !Command {
         return try Command.initParent(
             name,
@@ -98,6 +138,17 @@ pub const CliCraft = struct {
         );
     }
 
+    /// Provides a `FlagBuilder` for creating a new flag.
+    ///
+    /// Use this to define flags that will be added to commands.
+    ///
+    /// Parameters:
+    ///   name: The long name of the flag (e.g., "verbose").
+    ///   description: A brief explanation of the flag's purpose.
+    ///   flag_type: The type of value the flag expects (`FlagType.boolean`, `FlagType.int64`, `FlagType.string`).
+    ///
+    /// Returns:
+    ///   A `FlagBuilder` instance ready for further configuration or building.
     pub fn newFlagBuilder(
         self: CliCraft,
         name: []const u8,
@@ -107,6 +158,16 @@ pub const CliCraft = struct {
         return self.flag_factory.builder(name, description, flag_type);
     }
 
+    /// Provides a `FlagBuilder` for creating a new flag with a default value.
+    ///
+    /// Use this to define flags that will be added to commands.
+    ///
+    /// Parameters:
+    ///   name: The long name of the flag (e.g., "verbose").
+    ///   description: A brief explanation of the flag's purpose.
+    ///   flag_value: The default value for the flag, which also determines its type.
+    ///
+    /// Returns:
     pub fn newFlagBuilderWithDefaultValue(
         self: CliCraft,
         name: []const u8,
@@ -116,6 +177,15 @@ pub const CliCraft = struct {
         return self.flag_factory.builderWithDefaultValue(name, description, flag_value);
     }
 
+    /// Adds a new executable command to the top-level of the CLI application.
+    ///
+    /// Parameters:
+    ///   name: The name of the command.
+    ///   description: A brief description of the command's purpose.
+    ///   executable: The function to be executed when this command is invoked.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if the command cannot be added (e.g., name conflict).
     pub fn addExecutableCommand(
         self: *CliCraft,
         name: []const u8,
@@ -126,11 +196,28 @@ pub const CliCraft = struct {
         try self.addCommand(&command);
     }
 
+    /// Adds a new parent command (a command that can have subcommands) to the top-level of the CLI application.
+    ///
+    /// Parameters:
+    ///   name: The name of the parent command.
+    ///   description: A brief description of the parent command's purpose.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if the command cannot be added (e.g., name conflict).
     pub fn addParentCommand(self: *CliCraft, name: []const u8, description: []const u8) !void {
         const command = try self.newParentCommand(name, description);
         try self.addCommand(&command);
     }
 
+    /// Adds a pre-built `Command` instance to the top-level of the CLI application.
+    ///
+    /// This method allows for adding more complex command definitions.
+    ///
+    /// Parameters:
+    ///   command: A pointer to the `Command` instance to add.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if the command cannot be added (e.g., name conflict).
     pub fn addCommand(self: *CliCraft, command: *Command) !void {
         var diagnostics: Diagnostics = .{};
 
@@ -140,6 +227,13 @@ pub const CliCraft = struct {
         };
     }
 
+    /// Executes the command-line application using arguments provided by `std.os.args()`.
+    ///
+    /// This method parses the command line, validates input, and executes the appropriate command.
+    /// It handles printing help messages and logging diagnostics.
+    ///
+    /// Returns:
+    ///   `void` on successful execution, or an error if parsing or execution fails.
     pub fn execute(self: *CliCraft) !void {
         var diagnostics: Diagnostics = .{};
 
@@ -150,6 +244,17 @@ pub const CliCraft = struct {
         );
     }
 
+    /// Executes the command-line application using a custom slice of arguments.
+    ///
+    /// This method is useful for testing or when arguments are not coming directly from `std.os.args()`.
+    /// It parses the custom arguments, validates input, and executes the appropriate command.
+    /// It handles printing help messages and logging diagnostics.
+    ///
+    /// Parameters:
+    ///   arguments: A slice of string slices representing the command-line arguments.
+    ///
+    /// Returns:
+    ///   `void` on successful execution, or an error if parsing or execution fails.
     pub fn executeWithArguments(self: *CliCraft, arguments: []const []const u8) !void {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
@@ -161,6 +266,10 @@ pub const CliCraft = struct {
         );
     }
 
+    /// Deinitializes the `CliCraft` instance, freeing all associated allocated memory.
+    ///
+    /// This should be called when the `CliCraft` instance is no longer needed
+    /// to prevent memory leaks.
     pub fn deinit(self: *CliCraft) void {
         self.commands.deinit();
     }
