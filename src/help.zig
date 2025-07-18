@@ -17,10 +17,20 @@ const HelpFlagDisplayLabel = @import("flags.zig").HelpFlagDisplayLabel;
 const OutputStream = @import("stream.zig").OutputStream;
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
+/// Provides functionality to generate and print detailed help messages for a single command.
+/// This struct is responsible for formatting and presenting information about a command's
+/// description, usage, aliases, flags, argument specifications, and subcommands.
 pub const CommandHelp = struct {
+    /// The command for which help is being generated.
     command: Command,
+    /// The output stream to which help messages will be written.
     output_stream: OutputStream,
 
+    /// Initializes a `CommandHelp` instance for a specific command.
+    ///
+    /// Parameters:
+    ///   command: The `Command` struct to generate help for.
+    ///   output_stream: The `OutputStream` to use for printing.
     pub fn init(command: Command, output_stream: OutputStream) CommandHelp {
         return .{
             .command = command,
@@ -28,6 +38,12 @@ pub const CommandHelp = struct {
         };
     }
 
+    /// Prints the complete help message for the associated command.
+    /// This includes its name, description, usage, aliases, flags, argument specification, and subcommands.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator to use for temporary string allocations during formatting.
+    ///   flags: A pointer to the `Flags` collection applicable to this command (including inherited flags).
     pub fn printHelp(self: CommandHelp, allocator: std.mem.Allocator, flags: *Flags) !void {
         try self.output_stream.print("{s} - {s}\n\n", .{ self.command.name, self.command.description });
         try self.write_usage(flags, allocator);
@@ -37,6 +53,12 @@ pub const CommandHelp = struct {
         try self.write_subcommands(allocator);
     }
 
+    /// Writes the usage string for the command to the output stream.
+    /// This includes the command name, and indicators for flags, arguments, or subcommands.
+    ///
+    /// Parameters:
+    ///   flags: A pointer to the `Flags` collection applicable to this command.
+    ///   allocator: The allocator for temporary string building.
     fn write_usage(self: CommandHelp, flags: *Flags, allocator: std.mem.Allocator) !void {
         var usage: std.ArrayList(u8) = std.ArrayList(u8).init(allocator);
         defer usage.deinit();
@@ -64,6 +86,7 @@ pub const CommandHelp = struct {
         try self.output_stream.print("{s} \n", .{usage.items});
     }
 
+    /// Writes the aliases for the command to the output stream, if any.
     fn write_aliases(self: CommandHelp) !void {
         var table = prettytable.Table.init(std.testing.allocator);
         defer table.deinit();
@@ -74,6 +97,11 @@ pub const CommandHelp = struct {
         try self.output_stream.print("\n", .{});
     }
 
+    /// Writes the flags (both local and inherited) applicable to the command to the output stream.
+    ///
+    /// Parameters:
+    ///   flags: A pointer to the `Flags` collection to print.
+    ///   allocator: The allocator for temporary string building within `flags.print`.
     fn write_flags(self: CommandHelp, flags: *Flags, allocator: std.mem.Allocator) !void {
         if (flags.flag_by_name.count() > 0) {
             var table = prettytable.Table.init(std.testing.allocator);
@@ -86,6 +114,10 @@ pub const CommandHelp = struct {
         }
     }
 
+    /// Writes the argument specification for the command to the output stream, if defined.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator for temporary string building within `argument_specification.print`.
     fn write_argument_specification(self: CommandHelp, allocator: std.mem.Allocator) !void {
         if (self.command.argument_specification) |argument_specification| {
             try argument_specification.print(self.output_stream, allocator);
@@ -93,6 +125,10 @@ pub const CommandHelp = struct {
         }
     }
 
+    /// Writes the available subcommands for the command to the output stream, if it's a parent command.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator for temporary string building within `commands.print`.
     fn write_subcommands(self: CommandHelp, allocator: std.mem.Allocator) !void {
         switch (self.command.action) {
             .subcommands => |commands| {
@@ -109,11 +145,24 @@ pub const CommandHelp = struct {
     }
 };
 
+/// Provides functionality to generate and print general help messages for a collection of commands
+/// (e.g., top-level commands).
+/// This struct is responsible for formatting and presenting information about the application's
+/// description, general usage, and a list of all available commands and global flags.
 pub const CommandsHelp = struct {
+    /// The collection of commands for which general help is being generated.
     commands: Commands,
+    /// The output stream to which help messages will be written.
     output_stream: OutputStream,
+    /// An optional description for the entire application.
     app_description: ?[]const u8,
 
+    /// Initializes a `CommandsHelp` instance for a collection of commands.
+    ///
+    /// Parameters:
+    ///   commands: The `Commands` collection (e.g., top-level commands) to generate help for.
+    ///   app_description: An optional description for the application.
+    ///   output_stream: The `OutputStream` to use for printing.
     pub fn init(commands: Commands, app_description: ?[]const u8, output_stream: OutputStream) CommandsHelp {
         return .{
             .commands = commands,
@@ -122,6 +171,12 @@ pub const CommandsHelp = struct {
         };
     }
 
+    /// Prints the complete general help message for the application,
+    /// including the application description, general usage, a list of all commands,
+    /// and global flags.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator to use for temporary string allocations during formatting.
     pub fn printHelp(self: CommandsHelp, allocator: std.mem.Allocator) !void {
         if (self.app_description) |app_description| {
             try self.output_stream.print("{s}\n", .{app_description});
@@ -131,6 +186,10 @@ pub const CommandsHelp = struct {
         try self.write_global_flags(allocator);
     }
 
+    /// Writes the general usage string for the application to the output stream.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator for temporary string building.
     fn write_usage(self: CommandsHelp, allocator: std.mem.Allocator) !void {
         var usage: std.ArrayList(u8) = std.ArrayList(u8).init(allocator);
         defer usage.deinit();
@@ -139,6 +198,10 @@ pub const CommandsHelp = struct {
         try self.output_stream.print("\n", .{});
     }
 
+    /// Writes a table of all available commands to the output stream.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator for temporary string building within `commands.print`.
     fn write_allcommands(self: CommandsHelp, allocator: std.mem.Allocator) !void {
         var table = prettytable.Table.init(std.testing.allocator);
         defer table.deinit();
@@ -149,6 +212,10 @@ pub const CommandsHelp = struct {
         try self.output_stream.print("\n", .{});
     }
 
+    /// Writes a section listing global flags to the output stream.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator for temporary string building.
     fn write_global_flags(self: CommandsHelp, allocator: std.mem.Allocator) !void {
         var table = prettytable.Table.init(allocator);
         defer table.deinit();
