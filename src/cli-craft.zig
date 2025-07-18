@@ -1,37 +1,66 @@
+/// This module provides the core `CliCraft` framework for building declarative
+/// command-line applications in Zig. It offers a structured way to define
+/// commands, subcommands, flags, and arguments, along with built-in help
+/// generation and error handling.
 const std = @import("std");
 
-// Re-exporting public API structs begin
+// --- Re-exported Public API Structs ---
+
+/// Represents a single command in the CLI application, which can be either executable or a parent for subcommands.
 pub const Command = @import("commands.zig").Command;
+/// Type alias for a command's executable function.
 pub const CommandFn = @import("commands.zig").CommandFn;
+/// Type alias for the arguments passed to a command's executable function.
 pub const CommandFnArguments = @import("commands.zig").CommandFnArguments;
+/// Represents an alias for a command's name.
 pub const CommandAlias = @import("commands.zig").CommandAlias;
+/// A list of aliases for a command.
 pub const CommandAliases = @import("commands.zig").CommandAliases;
 
+/// Defines the rules for a command's positional arguments.
+/// This union allows specifying various constraints on the number of arguments a command expects.
 pub const ArgumentSpecification = @import("argument-specification.zig");
 
+/// Represents a single command-line flag, defining its name, type, description, and optional default value.
 pub const Flag = @import("flags.zig").Flag;
+/// Defines the data type of a flag's value (boolean, int64, or string).
 pub const FlagType = @import("flags.zig").FlagType;
+/// A union type holding the actual value of a flag, corresponding to its `FlagType`.
 pub const FlagValue = @import("flags.zig").FlagValue;
 
+/// A collection of flags that have been parsed from the command line.
+/// Provides methods to access parsed flag values.
 pub const ParsedFlags = @import("flags.zig").ParsedFlags;
+/// Represents a single flag that has been parsed, containing its name and value.
 pub const ParsedFlag = @import("flags.zig").ParsedFlag;
 
+/// Errors that can occur during command definition.
 pub const CommandAddError = @import("commands.zig").CommandAddError;
+/// Errors that can occur during command execution.
 pub const CommandExecutionError = @import("commands.zig").CommandExecutionError;
+/// Errors related to mutating command properties.
 pub const CommandMutationError = @import("commands.zig").CommandMutationError;
+/// Errors that can occur during command-line parsing.
 pub const CommandParsingError = @import("command-line-parser.zig").CommandParsingError;
+/// A comprehensive error type for all command-related operations.
 pub const CommandErrors = @import("commands.zig").CommandErrors;
 
+/// Errors that can occur when adding flags.
 pub const FlagAddError = @import("flags.zig").FlagAddError;
+/// Errors that can occur when retrieving a flag's value with an incorrect type.
 pub const FlagValueGetError = @import("flags.zig").FlagValueGetError;
+/// Errors that can occur during flag value conversion (e.g., string to int).
 pub const FlagValueConversionError = @import("flags.zig").FlagValueConversionError;
+/// A comprehensive error type for all flag-related operations.
 pub const FlagErrors = @import("flags.zig").FlagErrors;
 
+/// Errors related to argument parsing and validation.
 pub const ArgumentsError = @import("arguments.zig").ArgumentsError;
 
+/// A utility for collecting and reporting diagnostic messages and errors.
 pub const Diagnostics = @import("diagnostics.zig").Diagnostics;
 
-// Re-exporting public API structs end
+//Internal Imports
 
 const Commands = @import("commands.zig").Commands;
 const Arguments = @import("arguments.zig").Arguments;
