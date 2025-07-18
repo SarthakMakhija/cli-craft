@@ -7,9 +7,22 @@ const ArgumentSpecificationError = @import("argument-specification.zig").Argumen
 
 const OutputStream = @import("stream.zig").OutputStream;
 
+/// A struct for collecting and reporting diagnostic messages and errors encountered
+/// during the parsing, validation, and execution of CLI commands and flags.
+///
+/// It stores the type of diagnostic and provides methods to log it to an `OutputStream`
+/// and to convert it into a corresponding error.
 pub const Diagnostics = struct {
+    /// The specific type of diagnostic message, containing context-relevant data.
     diagnostics_type: ?DiagnosticType = null,
 
+    /// Logs the stored diagnostic message to the provided `OutputStream`.
+    ///
+    /// This function formats the error message based on the `DiagnosticType`
+    /// and prints it to the error writer of the `OutputStream`.
+    ///
+    /// Parameters:
+    ///   output_stream: The `OutputStream` to which the diagnostic message will be logged.
     pub fn log_using(self: Diagnostics, output_stream: OutputStream) void {
         if (self.diagnostics_type) |diagnostics_type| switch (diagnostics_type) {
             .FlagNameAlreadyExists => |context| {
@@ -99,6 +112,18 @@ pub const Diagnostics = struct {
         };
     }
 
+    /// Reports a diagnostic message and returns the corresponding error.
+    ///
+    /// This function sets the internal `diagnostics_type` and then returns
+    /// the appropriate error from the `FlagErrors`, `CommandErrors`, or `ArgumentValidationError` sets.
+    /// This is typically used in conjunction with the `?` operator or `catch` block
+    /// to propagate errors after logging.
+    ///
+    /// Parameters:
+    ///   diagnostic_type: The specific `DiagnosticType` to report.
+    ///
+    /// Returns:
+    ///   An `anyerror` that corresponds to the provided `diagnostic_type`.
     pub fn reportAndFail(self: *Diagnostics, diagnostic_type: DiagnosticType) anyerror {
         self.diagnostics_type = diagnostic_type;
         return switch (diagnostic_type) {
@@ -134,19 +159,25 @@ pub const Diagnostics = struct {
     }
 };
 
+/// A union representing the specific type of a diagnostic message,
+/// carrying relevant context for error reporting.
 pub const DiagnosticType = union(enum) {
+    /// Indicates that a flag name already exists.
     FlagNameAlreadyExists: struct {
         flag_name: []const u8,
     },
+    /// Indicates that a flag short name already exists for another flag.
     FlagShortNameAlreadyExists: struct {
         short_name: u8,
         existing_flag_name: []const u8,
     },
+    /// Indicates a conflict during flag merging due to a short name collision.
     FlagShortNameMergeConflict: struct {
         short_name: u8,
         flag_name: []const u8,
         conflicting_flag_name: []const u8,
     },
+    /// Indicates a flag conflict where long names are the same but short names differ.
     FlagConflictSameLongNameDifferentShortName: struct {
         command: []const u8,
         subcommand: []const u8,
@@ -154,6 +185,7 @@ pub const DiagnosticType = union(enum) {
         short_name: u8,
         other_short_name: u8,
     },
+    /// Indicates a flag conflict where short names are the same but long names differ.
     FlagConflictSameShortNameDifferentLongName: struct {
         command: []const u8,
         subcommand: []const u8,
@@ -161,85 +193,109 @@ pub const DiagnosticType = union(enum) {
         other_flag_name: []const u8,
         short_name: u8,
     },
+    /// Indicates a flag conflict where a short name is missing when expected.
     FlagConflictMissingShortName: struct {
         command: []const u8,
         subcommand: []const u8,
         flag_name: []const u8,
         expected_short_name: u8,
     },
+    /// Indicates an invalid boolean value provided for a flag.
     InvalidBoolean: struct {
         flag_name: []const u8,
         value: []const u8,
     },
+    /// Indicates an invalid integer value provided for a flag.
     InvalidInteger: struct {
         flag_name: []const u8,
         value: []const u8,
     },
+    /// Indicates that a specified flag was not found.
     FlagNotFound: struct {
         flag_name: []const u8,
     },
+    /// Indicates a type mismatch when retrieving a flag's value.
     FlagTypeMismatch: struct {
         flag_name: []const u8,
         expected_type: FlagType,
         value: []const u8,
     },
+    /// Indicates that no flags were added to a command, but a flag was expected.
     NoFlagsAddedToCommand: struct {
         parsed_flag: []const u8,
     },
+    /// Indicates that a flag was provided but no value was given.
     NoFlagValueProvided: struct {
         parsed_flag: []const u8,
     },
+    /// Indicates that a subcommand was expected but not provided.
     NoSubcommandProvided: struct {
         command: []const u8,
     },
+    /// Indicates that a subcommand was not added to its intended parent command.
     SubcommandNotAddedToParentCommand: struct {
         command: []const u8,
         subcommand: []const u8,
     },
+    /// Indicates that a subcommand's name is identical to its parent command's name.
     SubCommandNameSameAsParent: struct {
         command: []const u8,
     },
+    /// Indicates an attempt to add a subcommand to an executable command.
     SubCommandAddedToExecutable: struct {
         command: []const u8,
         subcommand: []const u8,
     },
+    /// Indicates an attempt to add a child command directly to the top-level `CliCraft` instance.
     ChildCommandAdded: struct {
         command: []const u8,
     },
+    /// Indicates that a command name already exists.
     CommandNameAlreadyExists: struct {
         command: []const u8,
     },
+    /// Indicates that a command alias already exists for another command.
     CommandAliasAlreadyExists: struct {
         alias: []const u8,
         existing_command: []const u8,
     },
+    /// Indicates that no command name was provided for execution.
     MissingCommandNameToExecute: struct {},
+    /// Indicates that a specified command was not found.
     CommandNotFound: struct {
         command: []const u8,
     },
+    /// Indicates an attempt to modify a command after it has been "frozen" (added to the CLI structure or
+    /// subcommand added to parent command).
     CommandAlreadyFrozen: struct {
         command: []const u8,
     },
+    /// Indicates that arguments were provided when zero were expected.
     ArgumentsNotEqualToZero: struct {
         actual_arguments: usize,
     },
+    /// Indicates that the number of arguments is less than the specified minimum.
     ArgumentsLessThanMinimum: struct {
         actual_arguments: usize,
         expected_arguments: usize,
     },
+    /// Indicates that the number of arguments is greater than the specified maximum.
     ArgumentsGreaterThanMaximum: struct {
         actual_arguments: usize,
         expected_arguments: usize,
     },
+    /// Indicates that the number of arguments does not exactly match the expected count.
     ArgumentsNotMatchingExpected: struct {
         actual_arguments: usize,
         expected_arguments: usize,
     },
+    /// Indicates that the number of arguments falls outside an exclusive range.
     ArgumentsNotInEndExclusiveRange: struct {
         actual_arguments: usize,
         minimum_arguments: usize,
         maximum_arguments: usize,
     },
+    /// Indicates that the number of arguments falls outside an inclusive range.
     ArgumentsNotInEndInclusiveRange: struct {
         actual_arguments: usize,
         minimum_arguments: usize,
