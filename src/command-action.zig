@@ -10,18 +10,52 @@ const ParsedFlags = @import("flags.zig").ParsedFlags;
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
 const OutputStream = @import("stream.zig").OutputStream;
 
+/// Defines the action a `Command` can perform: either executing a function or managing a
+/// collection of subcommands.
+/// This union ensures that a command can only have one type of action, preventing conflicting behaviors.
 pub const CommandAction = union(enum) {
+    /// The command executes a specific function when invoked.
     executable: CommandFn,
+    /// The command acts as a container for other subcommands.
     subcommands: Commands,
 
+    /// Initializes a `CommandAction` as an executable function.
+    ///
+    /// Parameters:
+    ///   executable: The `CommandFn` to be associated with this action.
     pub fn initExecutable(executable: CommandFn) CommandAction {
         return .{ .executable = executable };
     }
 
+    /// Initializes a `CommandAction` as a container for subcommands.
+    ///
+    /// This creates an empty `Commands` collection to hold the subcommands.
+    ///
+    /// Parameters:
+    ///   allocator: The allocator to use for the internal `Commands` collection.
+    ///   output_stream: The `OutputStream` to pass to the internal `Commands` collection.
+    ///
+    /// Returns:
+    ///   A new `CommandAction` configured for subcommands.
     pub fn initSubcommands(allocator: std.mem.Allocator, output_stream: OutputStream) !CommandAction {
         return .{ .subcommands = Commands.init(allocator, output_stream) };
     }
 
+    /// Adds a subcommand to this `CommandAction` if it is configured for subcommands.
+    ///
+    /// This method performs validation checks, such as ensuring the subcommand name
+    /// is not the same as the parent command's name, and preventing subcommands
+    /// from being added to executable commands. It also sets the `has_parent`
+    /// flag on the subcommand.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `CommandAction` instance.
+    ///   parent_command: A pointer to the parent `Command` struct.
+    ///   subcommand: A pointer to the `Command` struct to be added as a subcommand.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on success, or an error if the subcommand cannot be added due to validation rules.
     pub fn addSubcommand(
         self: *CommandAction,
         parent_command: *Command,
@@ -49,6 +83,13 @@ pub const CommandAction = union(enum) {
         }
     }
 
+    /// Deinitializes the `CommandAction`, freeing any associated resources.
+    ///
+    /// If the action is `subcommands`, it will deinitialize the internal `Commands` collection.
+    /// For `executable` actions, there are no resources to free.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `CommandAction` instance.
     pub fn deinit(self: *CommandAction) void {
         switch (self.*) {
             .executable => {},
