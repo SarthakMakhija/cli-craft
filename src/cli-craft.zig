@@ -38,6 +38,7 @@ const Arguments = @import("arguments.zig").Arguments;
 
 const OutputStream = @import("stream.zig").OutputStream;
 const FlagFactory = @import("flags.zig").FlagFactory;
+const FlagBuilder = @import("flags.zig").FlagBuilder;
 
 pub const GlobalOptions = struct {
     application_description: ?[]const u8 = null,
@@ -95,6 +96,24 @@ pub const CliCraft = struct {
             self.output_stream,
             self.options.allocator,
         );
+    }
+
+    pub fn newFlagBuilder(
+        self: CliCraft,
+        name: []const u8,
+        description: []const u8,
+        flag_type: FlagType,
+    ) FlagBuilder {
+        return self.flag_factory.builder(name, description, flag_type);
+    }
+
+    pub fn newFlagBuilderWithDefaultValue(
+        self: CliCraft,
+        name: []const u8,
+        description: []const u8,
+        flag_value: FlagValue,
+    ) FlagBuilder {
+        return self.flag_factory.builderWithDefaultValue(name, description, flag_value);
     }
 
     pub fn addExecutableCommand(
@@ -209,19 +228,19 @@ test "execute an executable command with arguments and flags" {
         runnable,
     );
     try command.addFlag(
-        try cliCraft.flag_factory.builder(
+        try cliCraft.newFlagBuilder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
         ).build(),
     );
-    try command.addFlag(try cliCraft.flag_factory.builder(
+    try command.addFlag(try cliCraft.newFlagBuilder(
         "priority",
         "Enable priority",
         FlagType.boolean,
     ).build());
 
-    try command.addFlag(try cliCraft.flag_factory.builderWithDefaultValue(
+    try command.addFlag(try cliCraft.newFlagBuilder(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(25),
