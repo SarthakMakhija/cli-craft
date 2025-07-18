@@ -22,25 +22,25 @@ Coming soon
 
 ### Features
 
-- **Command Parsing and Execution:** Seamlessly parse and execute commands based on user input.
-- **Parent and Child Commands:** Organize your CLI into a hierarchical structure with nested subcommands.
-- **Command Aliases:** Define alternative names for your commands for user convenience.
-- **Flags:** Comprehensive support for defining and parsing command-line flags.
-- **Local and Persistent Flags:** Differentiate between flags applicable only to a specific command (local) and those inherited by its subcommands (persistent).
-- **Typed Flags:** Support for `int64`, `boolean`, and `string` flag types.
-- **Short Names for Flags:** Provide single-character short names for flags (e.g., ``-v`` for ``--verbose``).
+- **Command Parsing and Execution:** Efficiently interpret and execute commands based on user input.
+- **Parent and Child Commands:** Organize your CLI with parent and child commands, enabling clean, nested subcommands.
+- **Command Aliases:** Support for alternative command names to enhance user convenience.
+- **Flags:** Full support for defining and parsing command-line flags.
+- **Local and Persistent Flags:** Distinguish between flags scoped to a specific command and those inherited by subcommands.
+- **Typed Flags:** Built-in support for `int64`, `bool`, and `string` types.
+- **Short Names for Flags:** Support for single-character aliases (e.g., `-v` for `--verbose`).
 - **Arguments:** Define and validate positional arguments for your commands.
-- **Argument Specification:** Specify argument requirements (e.g., exact count, minimum, maximum).
-- **Boolean Flags with and without Value:** Handle boolean flags that can be simply present (``--verbose``) or explicitly assigned a value (``--verbose true``).
+- **Argument Specification:** Specify argument rules such as exact, minimum, or maximum count.
+- **Boolean Flags with and without Value:** Handle both implicit (`--verbose`) and explicit (`--verbose true`) boolean flag values.
 - **Flags with Default Values:** Assign default values to flags, which are used if the flag is not provided by the user.
-- **Help Command:** Automatically generated and customizable help command.
-- **Help Flag:** Automatic ``--help`` or ``-h`` flag for each command and subcommand.
-- **Robustness:** Exhaustive tests ensure the reliability and correctness of the code.
+- **Help Command:** Automatically generated help command.
+- **Help Flag:** Automatic `--help` or `-h` flag for each command and subcommand.
+- **Robust and Tested:** Backed by extensive testing to ensure correctness and reliability..
 
 ### Current Limitations
 
-- Does not support ``--flag=value`` syntax for flags. Only ``--flag value`` is supported.
-- Does not support combined boolean flags (e.g., ``-vpf`` for ``-v -p -f``). Each short flag must be specified individually (e.g., ``-v -p -f``)
+- Does **not** support `--flag=value` syntax; only space-separated values (`--flag value`) are accepted.
+- Does **not** support combined short flags (e.g., `-vpf`); each flag must be written separately (`-v -p -f`).
 
 ### Contributing
 
