@@ -137,16 +137,16 @@ pub const CommandLineParser = struct {
 };
 
 const FlagErrors = @import("flags.zig").FlagErrors;
+const FlagFactory = @import("flags.zig").FlagFactory;
 
 test "attempt to parse a command line without explicit value for a non-boolean flag" {
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const priority_flag = try Flag.builder(
+    const priority_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Define priority",
         FlagType.int64,
-        std.testing.allocator,
     ).build();
 
     try flags.addFlag(priority_flag, &diagnostics);
@@ -183,11 +183,10 @@ test "attempt to parse a command line with an unregistered flag" {
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const priority_flag = try Flag.builder(
+    const priority_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Define priority",
         FlagType.int64,
-        std.testing.allocator,
     ).build();
 
     try flags.addFlag(priority_flag, &diagnostics);
@@ -224,11 +223,10 @@ test "attempt to parse a command line with an invalid integer value" {
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const priority_flag = try Flag.builder(
+    const priority_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Define priority",
         FlagType.int64,
-        std.testing.allocator,
     ).build();
 
     try flags.addFlag(priority_flag, &diagnostics);
@@ -266,11 +264,10 @@ test "parse a command line having a boolean flag without explicit value" {
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const verbose_flag = try Flag.builder(
+    const verbose_flag = try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
     try flags.addFlag(verbose_flag, &diagnostics);
 
@@ -301,11 +298,10 @@ test "parse a command line having a boolean flag without explicit value followed
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const verbose_flag = try Flag.builder(
+    const verbose_flag = try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
     try flags.addFlag(verbose_flag, &diagnostics);
 
@@ -336,11 +332,10 @@ test "parse a command line having a boolean flag with explicit value followed by
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const verbose_flag = try Flag.builder(
+    const verbose_flag = try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
     try flags.addFlag(verbose_flag, &diagnostics);
 
@@ -371,11 +366,10 @@ test "parse a command line having a flag with explicit value followed by argumen
     var flags = Flags.init(std.testing.allocator);
 
     var diagnostics: Diagnostics = .{};
-    const timeout_flag = try Flag.builder(
+    const timeout_flag = try FlagFactory.init(std.testing.allocator).builder(
         "timeout",
         "Define timeout",
         FlagType.int64,
-        std.testing.allocator,
     ).build();
     try flags.addFlag(timeout_flag, &diagnostics);
 
@@ -407,20 +401,18 @@ test "parse a command line having flags and no arguments" {
 
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "augend",
             "First argument to add",
             FlagType.int64,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "addend",
             "Second argument to add",
             FlagType.int64,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
@@ -453,29 +445,26 @@ test "parse a command line having a few flags and arguments" {
 
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "priority",
             "Define priority",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "namespace",
             "Define namespace",
             FlagType.string,
-            std.testing.allocator,
         ).withShortName('n').build(),
         &diagnostics,
     );
@@ -524,29 +513,26 @@ test "parse a command line with flags having default value but with command line
 
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "priority",
             "Define priority",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builderWithDefaultValue(
+        try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
             "timeout",
             "Define timeout",
             FlagValue.type_int64(25),
-            std.testing.allocator,
         ).withShortName('t').build(),
         &diagnostics,
     );
@@ -594,20 +580,18 @@ test "parse a command line with flags for a command which has child commands" {
 
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builderWithDefaultValue(
+        try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
             "timeout",
             "Define timeout",
             FlagValue.type_int64(25),
-            std.testing.allocator,
         ).withShortName('t').build(),
         &diagnostics,
     );
@@ -648,20 +632,18 @@ test "parse a command line with flags containing explicit boolean value for a co
 
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(
-        try Flag.builder(
+        try FlagFactory.init(std.testing.allocator).builder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
         &diagnostics,
     );
     try flags.addFlag(
-        try Flag.builderWithDefaultValue(
+        try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
             "timeout",
             "Define timeout",
             FlagValue.type_int64(25),
-            std.testing.allocator,
         ).withShortName('t').build(),
         &diagnostics,
     );

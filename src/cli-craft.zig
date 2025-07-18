@@ -37,6 +37,7 @@ const Commands = @import("commands.zig").Commands;
 const Arguments = @import("arguments.zig").Arguments;
 
 const OutputStream = @import("stream.zig").OutputStream;
+const FlagFactory = @import("flags.zig").FlagFactory;
 
 pub const GlobalOptions = struct {
     application_description: ?[]const u8 = null,
@@ -52,6 +53,7 @@ pub const GlobalOptions = struct {
 pub const CliCraft = struct {
     options: GlobalOptions,
     commands: Commands,
+    flag_factory: FlagFactory,
     output_stream: OutputStream,
 
     pub fn init(options: GlobalOptions) !CliCraft {
@@ -66,6 +68,7 @@ pub const CliCraft = struct {
         return .{
             .options = options,
             .commands = commands,
+            .flag_factory = FlagFactory.init(options.allocator),
             .output_stream = output_stream,
         };
     }
@@ -206,24 +209,22 @@ test "execute an executable command with arguments and flags" {
         runnable,
     );
     try command.addFlag(
-        try Flag.builder(
+        try cliCraft.flag_factory.builder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
-            std.testing.allocator,
         ).build(),
     );
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try cliCraft.flag_factory.builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
-    try command.addFlag(try Flag.builderWithDefaultValue(
+
+    try command.addFlag(try cliCraft.flag_factory.builderWithDefaultValue(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(25),
-        std.testing.allocator,
     ).withShortName('t').build());
 
     try cliCraft.addCommand(&command);

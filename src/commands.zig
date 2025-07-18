@@ -486,6 +486,8 @@ pub const Commands = struct {
     }
 };
 
+const FlagFactory = @import("flags.zig").FlagFactory;
+
 test "initialize a command with an executable action" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
@@ -507,11 +509,10 @@ test "initialize a command with a local flag" {
         }
     }.run;
 
-    const verbose_flag = try Flag.builder(
+    const verbose_flag = try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
 
     var command = try Command.init("test", "test command", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
@@ -641,11 +642,10 @@ test "attempt to add flag to frozen command" {
     try kubectl_command.addSubcommand(&get_command);
 
     try std.testing.expect(get_command.frozen);
-    var verbose_flag = try Flag.builder(
+    var verbose_flag = try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "define verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
 
     defer verbose_flag.deinit();
@@ -694,20 +694,18 @@ test "attempt to add a subcommand with same flag short name as the parent's pers
     }.run;
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Define priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).withShortName('v').markPersistent().build());
     defer kubectl_command.deinit();
 
     var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Define verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).withShortName('v').build());
     defer get_command.deinit();
 
@@ -722,20 +720,18 @@ test "attempt to add a subcommand with same flag as the parent's persistent flag
     }.run;
 
     var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Define verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).withShortName('v').markPersistent().build());
     defer kubectl_command.deinit();
 
     var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Define verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
     defer get_command.deinit();
 
@@ -1045,11 +1041,10 @@ test "add a local flag" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
     defer command.deinit();
 
@@ -1062,20 +1057,18 @@ test "attempt to add an existing local flag" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     defer command.deinit();
 
-    var duplicate_flag = try Flag.builder(
+    var duplicate_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
 
     defer duplicate_flag.deinit();
@@ -1090,18 +1083,16 @@ test "attempt to add a local flag which exists as persistent flag" {
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer command.deinit();
 
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).markPersistent().build());
 
-    var duplicate_flag = try Flag.builder(
+    var duplicate_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build();
 
     defer duplicate_flag.deinit();
@@ -1114,11 +1105,10 @@ test "add a persistent flag" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).markPersistent().build());
     defer command.deinit();
 
@@ -1131,20 +1121,18 @@ test "attempt to add an existing persistent flag" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).markPersistent().build());
 
     defer command.deinit();
 
-    var duplicate_flag = try Flag.builder(
+    var duplicate_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).markPersistent().build();
 
     defer duplicate_flag.deinit();
@@ -1157,20 +1145,18 @@ test "attempt to add a persistent flag which exists as local flag" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     defer command.deinit();
 
-    var duplicate_flag = try Flag.builder(
+    var duplicate_flag = try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).markPersistent().build();
 
     defer duplicate_flag.deinit();
@@ -1221,24 +1207,24 @@ test "execute a command passing flags and arguments" {
     }.run;
 
     var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.addFlag(try Flag.builder(
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
-    try command.addFlag(try Flag.builder(
+
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
-    try command.addFlag(try Flag.builderWithDefaultValue(
+
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(25),
-        std.testing.allocator,
     ).withShortName('t').build());
+
     defer command.deinit();
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "add", "-t", "23", "2", "5", "--verbose", "--priority" });
@@ -1263,22 +1249,21 @@ test "execute a command with child command passing flags and arguments 1" {
     }.run;
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "namespace",
         "Define namespace",
         FlagType.string,
-        std.testing.allocator,
     ).markPersistent().build());
+
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "--verbose", "pods" });
@@ -1302,22 +1287,21 @@ test "execute a command with child command passing flags and arguments 2" {
     }.run;
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "namespace",
         "Define namespace",
         FlagType.string,
-        std.testing.allocator,
     ).markPersistent().build());
+
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1342,28 +1326,27 @@ test "execute a command with child command passing flags and arguments with a pe
     }.run;
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "namespace",
         "Define namespace",
         FlagType.string,
-        std.testing.allocator,
     ).markPersistent().build());
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "priority",
         "Define priority",
         FlagValue.type_int64(100),
-        std.testing.allocator,
     ).markPersistent().build());
+
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1388,28 +1371,27 @@ test "execute a command with child command passing flags and arguments with a lo
     }.run;
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "namespace",
         "Define namespace",
         FlagType.string,
-        std.testing.allocator,
     ).markPersistent().build());
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "priority",
         "Define priority",
         FlagValue.type_int64(100),
-        std.testing.allocator,
     ).build());
+
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1435,34 +1417,33 @@ test "execute a command with child command passing flags and arguments with a lo
     }.run;
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "namespace",
         "Define namespace",
         FlagType.string,
-        std.testing.allocator,
     ).markPersistent().build());
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(20),
-        std.testing.allocator,
     ).markPersistent().build());
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "priority",
         "Define priority",
         FlagValue.type_int64(100),
-        std.testing.allocator,
     ).build());
+
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "get", "pods", "--verbose", "false" });
@@ -1488,34 +1469,33 @@ test "execute a command with child command passing flags and arguments with a lo
     }.run;
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try get_command.addFlag(try Flag.builder(
+    try get_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "verbose",
         "Enable verbose output",
         FlagType.boolean,
-        std.testing.allocator,
     ).build());
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
 
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "namespace",
         "Define namespace",
         FlagType.string,
-        std.testing.allocator,
     ).markPersistent().build());
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(20),
-        std.testing.allocator,
     ).markPersistent().build());
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "priority",
         "Define priority",
         FlagValue.type_int64(100),
-        std.testing.allocator,
     ).build());
+
     try kubectl_command.addSubcommand(&get_command);
 
     var arguments = try Arguments.initWithArgs(&[_][]const u8{ "kubectl", "--namespace", "cli-craft", "--timeout", "40", "get", "pods", "--verbose", "false" });
@@ -1541,11 +1521,10 @@ test "execute a command with child command passing a local flag which is also in
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
-    try kubectl_command.addFlag(try Flag.builder(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
         "priority",
         "Enable priority",
         FlagType.int64,
-        std.testing.allocator,
     ).markPersistent().build());
 
     try kubectl_command.addSubcommand(&get_command);
@@ -1573,11 +1552,10 @@ test "execute a command with child command passing a local flag which is also in
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "priority",
         "Enable priority",
         FlagValue.type_int64(100),
-        std.testing.allocator,
     ).markPersistent().build());
 
     try kubectl_command.addSubcommand(&get_command);
@@ -1605,11 +1583,11 @@ test "execute a command with child command with a inherited flag from parent wit
 
     var kubectl_command = try Command.initParent("kubectl", "Entry point", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
     defer kubectl_command.deinit();
-    try kubectl_command.addFlag(try Flag.builderWithDefaultValue(
+
+    try kubectl_command.addFlag(try FlagFactory.init(std.testing.allocator).builderWithDefaultValue(
         "priority",
         "Enable priority",
         FlagValue.type_int64(100),
-        std.testing.allocator,
     ).markPersistent().build());
 
     try kubectl_command.addSubcommand(&get_command);
