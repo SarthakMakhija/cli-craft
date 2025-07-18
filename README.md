@@ -1,5 +1,5 @@
 <p align="center">
-<img width="512" height="512" alt="cli-craft logo" src="https://github.com/user-attachments/assets/e4910ed2-8db7-423f-b507-16f1b9e40b94" />
+  <img width="512" height="512" alt="cli-craft logo-compressed" src="https://github.com/user-attachments/assets/ce39a176-a451-4307-b37d-44fc99019a70" />
 </p>
 
 # cli-craft
