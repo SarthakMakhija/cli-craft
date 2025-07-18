@@ -40,5 +40,5 @@
 - [ ] An example project
 - [X] Correct all tests which return error, the unit tests need to ensure that the tests fail if error is not returned
 - [ ] README
-- [ ] Code documentation
+- [X] Code documentation
 - [ ] Release the library
