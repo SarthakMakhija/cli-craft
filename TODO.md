@@ -34,7 +34,7 @@
 - [X] Ensure that the same flag can not be local and persistent
 - [X] Revalidate the arguments of run function in a command
 - [X] Revisit export of public APIs + errors
-- [ ] Maybe, copy the command name, description, usage, alias + flag name, description, flag value
+- [X] Copy the command name, description, usage, alias + flag name, description, flag value
 - [X] Convert aliases to list
 - [X] An entrypoint of the cli-craft library
 - [ ] An example project
