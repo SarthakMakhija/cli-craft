@@ -45,7 +45,6 @@ pub const Command = struct {
     action: CommandAction,
     aliases: ?CommandAliases = null,
     argument_specification: ?ArgumentSpecification = null,
-    deprecated_message: ?[]const u8 = null,
     has_parent: bool = false,
     frozen: bool = false,
     local_flags: Flags,
@@ -120,11 +119,6 @@ pub const Command = struct {
                 return err;
             };
         }
-    }
-
-    pub fn markDeprecated(self: *Command, deprecated_message: []const u8) !void {
-        try self.logOnMutationFailureIfFrozen();
-        self.deprecated_message = deprecated_message;
     }
 
     pub fn printAliases(self: Command, table: *prettytable.Table) !void {
@@ -209,7 +203,6 @@ pub const Command = struct {
         }
     }
 
-    //TODO: print deprecated message if the command is deprecated
     fn execute(self: Command, arguments: *Arguments, diagnostics: *Diagnostics, allocator: std.mem.Allocator) !void {
         var flags = Flags.init(allocator);
         defer flags.deinit();
@@ -473,20 +466,6 @@ test "initialize a command with an executable action" {
     try std.testing.expectEqualStrings("test command", command.description);
 }
 
-test "initialize a command with an executable action and mark it as deprecated" {
-    const runnable = struct {
-        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
-            return;
-        }
-    }.run;
-
-    var command = try Command.init("test", "test command", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try command.markDeprecated("This command is deprecated");
-    defer command.deinit();
-
-    try std.testing.expectEqualStrings("This command is deprecated", command.deprecated_message.?);
-}
-
 test "initialize a command with a local flag" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
@@ -624,23 +603,6 @@ test "attempt to add aliases to frozen command" {
 
     try std.testing.expect(get_command.frozen);
     try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.addAliases(&[_]CommandAlias{ "str", "strm" }));
-}
-
-test "attempt to mark a frozen command deprecated" {
-    const runnable = struct {
-        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
-            return;
-        }
-    }.run;
-
-    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    defer kubectl_command.deinit();
-
-    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
-    try kubectl_command.addSubcommand(&get_command);
-
-    try std.testing.expect(get_command.frozen);
-    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.markDeprecated("deprecated command !"));
 }
 
 test "initialize a parent command with subcommands" {

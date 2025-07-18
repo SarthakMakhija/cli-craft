@@ -33,7 +33,7 @@
 - [X] Remove logging errors in execute / cli-craft.execute ..
 - [X] Ensure that the same flag can not be local and persistent
 - [X] Revalidate the arguments of run function in a command
-- [ ] Revisit export of public APIs + errors
+- [X] Revisit export of public APIs + errors
 - [ ] Maybe, copy the command name and description or decide if they should be comptime
 - [X] An entrypoint of the cli-craft library
 - [ ] An example project

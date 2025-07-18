@@ -35,7 +35,6 @@ pub const CommandHelp = struct {
         try self.write_flags(flags, allocator);
         try self.write_argument_specification(allocator);
         try self.write_subcommands(allocator);
-        try self.write_deprecated_message();
     }
 
     fn write_usage(self: CommandHelp, flags: *Flags, allocator: std.mem.Allocator) !void {
@@ -103,12 +102,6 @@ pub const CommandHelp = struct {
                 try self.output_stream.print("\n", .{});
             },
             else => {},
-        }
-    }
-
-    fn write_deprecated_message(self: CommandHelp) !void {
-        if (self.command.deprecated_message) |msg| {
-            try self.output_stream.print("Deprecated: {s}\n\n", .{msg});
         }
     }
 };
