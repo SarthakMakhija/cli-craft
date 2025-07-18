@@ -85,11 +85,13 @@ pub const FlagConflict = struct {
 pub const Flags = struct {
     flag_by_name: std.StringHashMap(Flag),
     short_name_to_long_name: std.AutoHashMap(u8, []const u8),
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Flags {
         return .{
             .flag_by_name = std.StringHashMap(Flag).init(allocator),
             .short_name_to_long_name = std.AutoHashMap(u8, []const u8).init(allocator),
+            .allocator = allocator,
         };
     }
 
@@ -102,7 +104,16 @@ pub const Flags = struct {
     }
 
     pub fn addHelp(self: *Flags) !void {
-        try self.flag_by_name.put(HelpFlagName, Flag.builder(HelpFlagName, "Show help for command", FlagType.boolean).build());
+        const help_flag = try Flag.builder(
+            HelpFlagName,
+            "Show help for command",
+            FlagType.boolean,
+            self.allocator,
+        ).withShortName(HelpFlagShortName[0]).build();
+
+        // defer help_flag.deinit();
+
+        try self.flag_by_name.put(help_flag.name, help_flag);
         try self.short_name_to_long_name.put(HelpFlagShortName[0], HelpFlagName);
     }
 
@@ -148,7 +159,16 @@ pub const Flags = struct {
             if (self.flag_by_name.contains(other_flag.name)) {
                 continue;
             }
-            try self.addFlag(other_flag.*, diagnostics);
+            const cloned_flag = try Flag.create(
+                other_flag.name,
+                other_flag.short_name,
+                other_flag.description,
+                other_flag.flag_type,
+                other_flag.default_value,
+                other_flag.persistent,
+                self.allocator,
+            );
+            try self.addFlag(cloned_flag, diagnostics);
         }
     }
 
@@ -261,6 +281,11 @@ pub const Flags = struct {
     }
 
     pub fn deinit(self: *Flags) void {
+        var iterator = self.flag_by_name.iterator();
+        while (iterator.next()) |entry| {
+            var flag = entry.value_ptr;
+            flag.deinit();
+        }
         self.flag_by_name.deinit();
         self.short_name_to_long_name.deinit();
     }
@@ -289,11 +314,25 @@ pub const FlagValue = union(FlagType) {
         return .{ .string = value };
     }
 
+    fn mayeBeDupe(self: FlagValue, allocator: std.mem.Allocator) !FlagValue {
+        return switch (self) {
+            .string => |value| FlagValue.type_string(try allocator.dupe(u8, value)),
+            else => self,
+        };
+    }
+
     fn flag_type(self: FlagValue) FlagType {
         return switch (self) {
             .boolean => FlagType.boolean,
             .int64 => FlagType.int64,
             .string => FlagType.string,
+        };
+    }
+
+    fn deinit(self: *FlagValue, allocator: std.mem.Allocator) void {
+        return switch (self.*) {
+            .string => |value| allocator.free(value),
+            else => {},
         };
     }
 };
@@ -305,6 +344,7 @@ pub const Flag = struct {
     flag_type: FlagType,
     default_value: ?FlagValue,
     persistent: bool,
+    allocator: std.mem.Allocator,
 
     fn create(
         name: []const u8,
@@ -313,23 +353,47 @@ pub const Flag = struct {
         flag_type: FlagType,
         default_value: ?FlagValue,
         persistent: bool,
-    ) Flag {
+        allocator: std.mem.Allocator,
+    ) !Flag {
+        const cloned_name = try allocator.dupe(u8, name);
+        errdefer allocator.free(cloned_name);
+
+        const cloned_description = try allocator.dupe(u8, description);
+        errdefer allocator.free(cloned_description);
+
+        var cloned_default_value: ?FlagValue = null;
+        if (default_value) |default| {
+            cloned_default_value = try default.mayeBeDupe(allocator);
+            errdefer allocator.free(cloned_default_value);
+        }
+
         return .{
-            .name = name,
+            .name = cloned_name,
             .short_name = short_name,
-            .description = description,
+            .description = cloned_description,
             .flag_type = flag_type,
-            .default_value = default_value,
+            .default_value = cloned_default_value,
             .persistent = persistent,
+            .allocator = allocator,
         };
     }
 
-    pub fn builder(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
-        return FlagBuilder.init(name, description, flag_type);
+    pub fn builder(
+        name: []const u8,
+        description: []const u8,
+        flag_type: FlagType,
+        allocator: std.mem.Allocator,
+    ) FlagBuilder {
+        return FlagBuilder.init(name, description, flag_type, allocator);
     }
 
-    pub fn builderWithDefaultValue(name: []const u8, description: []const u8, flag_value: FlagValue) FlagBuilder {
-        return FlagBuilder.initWithDefaultValue(name, description, flag_value);
+    pub fn builderWithDefaultValue(
+        name: []const u8,
+        description: []const u8,
+        flag_value: FlagValue,
+        allocator: std.mem.Allocator,
+    ) FlagBuilder {
+        return FlagBuilder.initWithDefaultValue(name, description, flag_value, allocator);
     }
 
     pub fn looksLikeFlagName(name: []const u8) bool {
@@ -377,6 +441,14 @@ pub const Flag = struct {
             .string => return FlagValue.type_string(value),
         };
     }
+
+    pub fn deinit(self: *Flag) void {
+        self.allocator.free(self.name);
+        self.allocator.free(self.description);
+        if (self.default_value) |*default| {
+            default.deinit(self.allocator);
+        }
+    }
 };
 
 pub const FlagBuilder = struct {
@@ -386,23 +458,26 @@ pub const FlagBuilder = struct {
     default_value: ?FlagValue = null,
     flag_type: FlagType,
     persistent: bool = false,
+    allocator: std.mem.Allocator,
 
-    fn init(name: []const u8, description: []const u8, flag_type: FlagType) FlagBuilder {
+    fn init(name: []const u8, description: []const u8, flag_type: FlagType, allocator: std.mem.Allocator) FlagBuilder {
         return .{
             .name = name,
             .description = description,
             .flag_type = flag_type,
             .persistent = false,
+            .allocator = allocator,
         };
     }
 
-    fn initWithDefaultValue(name: []const u8, description: []const u8, value: FlagValue) FlagBuilder {
+    fn initWithDefaultValue(name: []const u8, description: []const u8, value: FlagValue, allocator: std.mem.Allocator) FlagBuilder {
         return .{
             .name = name,
             .description = description,
             .flag_type = value.flag_type(),
             .default_value = value,
             .persistent = false,
+            .allocator = allocator,
         };
     }
 
@@ -418,8 +493,16 @@ pub const FlagBuilder = struct {
         return new_self;
     }
 
-    pub fn build(self: FlagBuilder) Flag {
-        return Flag.create(self.name, self.short_name, self.description, self.flag_type, self.default_value, self.persistent);
+    pub fn build(self: FlagBuilder) !Flag {
+        return Flag.create(
+            self.name,
+            self.short_name,
+            self.description,
+            self.flag_type,
+            self.default_value,
+            self.persistent,
+            self.allocator,
+        );
     }
 };
 
@@ -543,8 +626,14 @@ test "flag conflict missing short name to diagnostic type" {
 }
 
 test "build a boolean flag with name and description" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
-        .build();
+    var verbose_flag = try Flag.builder(
+        "verbose",
+        "Enable verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build();
+
+    defer verbose_flag.deinit();
 
     try std.testing.expectEqualStrings("verbose", verbose_flag.name);
     try std.testing.expectEqualStrings("Enable verbose output", verbose_flag.description);
@@ -554,9 +643,14 @@ test "build a boolean flag with name and description" {
 }
 
 test "build a boolean flag with short name and default value" {
-    const verbose_flag = Flag.builderWithDefaultValue("verbose", "Enable verbose output", FlagValue.type_boolean(false))
-        .withShortName('v')
-        .build();
+    var verbose_flag = try Flag.builderWithDefaultValue(
+        "verbose",
+        "Enable verbose output",
+        FlagValue.type_boolean(false),
+        std.testing.allocator,
+    ).withShortName('v').build();
+
+    defer verbose_flag.deinit();
 
     try std.testing.expectEqualStrings("verbose", verbose_flag.name);
     try std.testing.expectEqualStrings("Enable verbose output", verbose_flag.description);
@@ -565,8 +659,14 @@ test "build a boolean flag with short name and default value" {
 }
 
 test "build a int64 flag with name and description" {
-    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
-        .build();
+    var count_flag = try Flag.builder(
+        "count",
+        "Count items",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build();
+
+    defer count_flag.deinit();
 
     try std.testing.expectEqualStrings("count", count_flag.name);
     try std.testing.expectEqualStrings("Count items", count_flag.description);
@@ -576,9 +676,14 @@ test "build a int64 flag with name and description" {
 }
 
 test "build a int64 flag with short name and default value" {
-    const count_flag = Flag.builderWithDefaultValue("count", "Count items", FlagValue.type_int64(10))
-        .withShortName('c')
-        .build();
+    var count_flag = try Flag.builderWithDefaultValue(
+        "count",
+        "Count items",
+        FlagValue.type_int64(10),
+        std.testing.allocator,
+    ).withShortName('c').build();
+
+    defer count_flag.deinit();
 
     try std.testing.expectEqualStrings("count", count_flag.name);
     try std.testing.expectEqualStrings("Count items", count_flag.description);
@@ -588,8 +693,14 @@ test "build a int64 flag with short name and default value" {
 }
 
 test "build a string flag with name and description" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
-        .build();
+    var namespace_flag = try Flag.builder(
+        "namespace",
+        "Define the namespace",
+        FlagType.string,
+        std.testing.allocator,
+    ).build();
+
+    defer namespace_flag.deinit();
 
     try std.testing.expectEqualStrings("namespace", namespace_flag.name);
     try std.testing.expectEqualStrings("Define the namespace", namespace_flag.description);
@@ -598,9 +709,14 @@ test "build a string flag with name and description" {
 }
 
 test "build a string flag with short name and default value" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    var namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
+
+    defer namespace_flag.deinit();
 
     try std.testing.expectEqualStrings("namespace", namespace_flag.name);
     try std.testing.expectEqualStrings("Define the namespace", namespace_flag.description);
@@ -610,16 +726,27 @@ test "build a string flag with short name and default value" {
 }
 
 test "build a persistent flag" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
-        .markPersistent()
-        .build();
+    var namespace_flag = try Flag.builder(
+        "namespace",
+        "Define the namespace",
+        FlagType.string,
+        std.testing.allocator,
+    ).markPersistent().build();
+
+    defer namespace_flag.deinit();
 
     try std.testing.expect(namespace_flag.persistent);
 }
 
 test "build a non-persistent flag" {
-    const namespace_flag = Flag.builder("namespace", "Define the namespace", FlagType.string)
-        .build();
+    var namespace_flag = try Flag.builder(
+        "namespace",
+        "Define the namespace",
+        FlagType.string,
+        std.testing.allocator,
+    ).build();
+
+    defer namespace_flag.deinit();
 
     try std.testing.expect(namespace_flag.persistent == false);
 }
@@ -664,9 +791,12 @@ test "normalize a flag name which is already normalized or is not a flag" {
 }
 
 test "attempt to add a flag with an existing name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -674,9 +804,14 @@ test "attempt to add a flag with an existing name" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const namespace_counting_flag = Flag.builder("namespace", "Count namespaces", FlagType.int64)
-        .withShortName('n')
-        .build();
+    var namespace_counting_flag = try Flag.builder(
+        "namespace",
+        "Count namespaces",
+        FlagType.int64,
+        std.testing.allocator,
+    ).withShortName('n').build();
+
+    defer namespace_counting_flag.deinit();
 
     try std.testing.expectError(FlagAddError.FlagNameAlreadyExists, flags.addFlag(namespace_counting_flag, &diagnostics));
 
@@ -685,9 +820,12 @@ test "attempt to add a flag with an existing name" {
 }
 
 test "attempt to add a flag with an existing short name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -695,9 +833,14 @@ test "attempt to add a flag with an existing short name" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const namespace_counting_flag = Flag.builder("counter", "Count namespaces", FlagType.int64)
-        .withShortName('n')
-        .build();
+    var namespace_counting_flag = try Flag.builder(
+        "counter",
+        "Count namespaces",
+        FlagType.int64,
+        std.testing.allocator,
+    ).withShortName('n').build();
+
+    defer namespace_counting_flag.deinit();
 
     try std.testing.expectError(FlagAddError.FlagShortNameAlreadyExists, flags.addFlag(namespace_counting_flag, &diagnostics));
 
@@ -706,9 +849,12 @@ test "attempt to add a flag with an existing short name" {
 }
 
 test "add a flag and check its existence by name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -720,9 +866,12 @@ test "add a flag and check its existence by name" {
 }
 
 test "determine conflict based on missing short name for a flag name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -730,8 +879,12 @@ test "determine conflict based on missing short name for a flag name" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .build();
+    const other_namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).build();
 
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
@@ -743,9 +896,12 @@ test "determine conflict based on missing short name for a flag name" {
 }
 
 test "determine conflict based on different short name for the same flag name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -753,9 +909,12 @@ test "determine conflict based on different short name for the same flag name" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('p')
-        .build();
+    const other_namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('p').build();
 
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
@@ -768,9 +927,12 @@ test "determine conflict based on different short name for the same flag name" {
 }
 
 test "determine conflict based on different long name for the same flag short name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -778,25 +940,32 @@ test "determine conflict based on different long name for the same flag short na
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builderWithDefaultValue("verbose", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const other_namespace_flag = try Flag.builderWithDefaultValue(
+        "verbose",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
     try other_flags.addFlag(other_namespace_flag, &diagnostics);
 
     const conflict = flags.determineConflictWith(other_flags);
+
     try std.testing.expectEqualStrings("verbose", conflict.flag_name.?);
-    try std.testing.expectEqual("namespace", conflict.conflict_type.?.SameShortNameDifferentLongName.flag_name);
-    try std.testing.expectEqual("verbose", conflict.conflict_type.?.SameShortNameDifferentLongName.other_flag_name);
+    try std.testing.expectEqualStrings("namespace", conflict.conflict_type.?.SameShortNameDifferentLongName.flag_name);
+    try std.testing.expectEqualStrings("verbose", conflict.conflict_type.?.SameShortNameDifferentLongName.other_flag_name);
     try std.testing.expectEqual('n', conflict.conflict_type.?.SameShortNameDifferentLongName.short_name);
 }
 
 test "has no conflict" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -804,9 +973,12 @@ test "has no conflict" {
     var diagnostics: Diagnostics = .{};
     try flags.addFlag(namespace_flag, &diagnostics);
 
-    const other_namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const other_namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var other_flags = Flags.init(std.testing.allocator);
     defer other_flags.deinit();
@@ -817,13 +989,19 @@ test "has no conflict" {
 }
 
 test "print flags" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("cli-craft"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("cli-craft"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
-    const verbose_flag = Flag.builder("verbose", "Define verbose output", FlagType.boolean)
-        .withShortName('v')
-        .build();
+    const verbose_flag = try Flag.builder(
+        "verbose",
+        "Define verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).withShortName('v').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -864,9 +1042,12 @@ test "add help flag" {
 }
 
 test "add a flag and check its existence by short name" {
-    const namespace_flag = Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build();
+    const namespace_flag = try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -892,8 +1073,14 @@ test "check the existence of a non-existing flag by short name" {
 }
 
 test "convert a string to true boolean flag value" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
-        .build();
+    var verbose_flag = try Flag.builder(
+        "verbose",
+        "Enable verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build();
+
+    defer verbose_flag.deinit();
 
     var diagnostics: Diagnostics = .{};
     const flag_value = try verbose_flag.toFlagValue("true", &diagnostics);
@@ -902,8 +1089,14 @@ test "convert a string to true boolean flag value" {
 }
 
 test "convert a string to false boolean flag value" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
-        .build();
+    var verbose_flag = try Flag.builder(
+        "verbose",
+        "Enable verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build();
+
+    defer verbose_flag.deinit();
 
     var diagnostics: Diagnostics = .{};
     const flag_value = try verbose_flag.toFlagValue("false", &diagnostics);
@@ -912,8 +1105,14 @@ test "convert a string to false boolean flag value" {
 }
 
 test "attempt to convert a string to true boolean flag value" {
-    const verbose_flag = Flag.builder("verbose", "Enable verbose output", FlagType.boolean)
-        .build();
+    var verbose_flag = try Flag.builder(
+        "verbose",
+        "Enable verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build();
+
+    defer verbose_flag.deinit();
 
     var diagnostics: Diagnostics = .{};
     try std.testing.expectError(FlagValueConversionError.InvalidBoolean, verbose_flag.toFlagValue("nothing", &diagnostics));
@@ -924,8 +1123,14 @@ test "attempt to convert a string to true boolean flag value" {
 }
 
 test "convert a string to int64 flag value" {
-    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
-        .build();
+    var count_flag = try Flag.builder(
+        "count",
+        "Count items",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build();
+
+    defer count_flag.deinit();
 
     var diagnostics: Diagnostics = .{};
     const flag_value = try count_flag.toFlagValue("123", &diagnostics);
@@ -934,8 +1139,14 @@ test "convert a string to int64 flag value" {
 }
 
 test "attempt to convert a string to int64 flag value" {
-    const count_flag = Flag.builder("count", "Count items", FlagType.int64)
-        .build();
+    var count_flag = try Flag.builder(
+        "count",
+        "Count items",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build();
+
+    defer count_flag.deinit();
 
     var diagnostics: Diagnostics = .{};
     try std.testing.expectError(FlagValueConversionError.InvalidInteger, count_flag.toFlagValue("nothing", &diagnostics));
@@ -946,8 +1157,14 @@ test "attempt to convert a string to int64 flag value" {
 }
 
 test "convert a string to string flag value" {
-    const namespace_flag = Flag.builder("namespace", "Define namespace", FlagType.string)
-        .build();
+    var namespace_flag = try Flag.builder(
+        "namespace",
+        "Define namespace",
+        FlagType.string,
+        std.testing.allocator,
+    ).build();
+
+    defer namespace_flag.deinit();
 
     var diagnostics: Diagnostics = .{};
     const flag_value = try namespace_flag.toFlagValue("cli-craft", &diagnostics);
@@ -963,11 +1180,19 @@ test "merge flags containing unique flags" {
     defer other_flags.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try flags.addFlag(Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build(), &diagnostics);
+    try flags.addFlag(try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build(), &diagnostics);
 
-    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
+    try other_flags.addFlag(try Flag.builder(
+        "verbose",
+        "Define verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build(), &diagnostics);
 
     try flags.mergeFrom(&other_flags, &diagnostics);
 
@@ -983,12 +1208,25 @@ test "merge flags containing flags with same name" {
     defer other_flags.deinit();
 
     var diagnostics: Diagnostics = .{};
-    try flags.addFlag(Flag.builderWithDefaultValue("namespace", "Define the namespace", FlagValue.type_string("default_namespace"))
-        .withShortName('n')
-        .build(), &diagnostics);
+    try flags.addFlag(try Flag.builderWithDefaultValue(
+        "namespace",
+        "Define the namespace",
+        FlagValue.type_string("default_namespace"),
+        std.testing.allocator,
+    ).withShortName('n').build(), &diagnostics);
 
-    try other_flags.addFlag(Flag.builder("verbose", "Define verbose output", FlagType.boolean).build(), &diagnostics);
-    try other_flags.addFlag(Flag.builder("namespace", "Define namespace", FlagType.string).build(), &diagnostics);
+    try other_flags.addFlag(try Flag.builder(
+        "verbose",
+        "Define verbose output",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try other_flags.addFlag(try Flag.builder(
+        "namespace",
+        "Define namespace",
+        FlagType.string,
+        std.testing.allocator,
+    ).build(), &diagnostics);
 
     try flags.mergeFrom(&other_flags, &diagnostics);
 
@@ -1067,8 +1305,12 @@ test "add a parsed flag with default value" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25))
-        .build();
+    const timeout_flag = try Flag.builderWithDefaultValue(
+        "timeout",
+        "Define timeout",
+        FlagValue.type_int64(25),
+        std.testing.allocator,
+    ).build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -1087,8 +1329,12 @@ test "attempt to add a parsed flag with default value when the flag is already p
     try parsed_flags.addFlag(ParsedFlag.init("timeout", FlagValue.type_int64(30)));
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25))
-        .build();
+    const timeout_flag = try Flag.builderWithDefaultValue(
+        "timeout",
+        "Define timeout",
+        FlagValue.type_int64(25),
+        std.testing.allocator,
+    ).build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
@@ -1106,13 +1352,19 @@ test "add a couple of parsed flags with default value" {
     var parsed_flags = ParsedFlags.init(std.testing.allocator);
     defer parsed_flags.deinit();
 
-    const timeout_flag = Flag.builderWithDefaultValue("timeout", "Define timeout", FlagValue.type_int64(25))
-        .markPersistent()
-        .build();
+    const timeout_flag = try Flag.builderWithDefaultValue(
+        "timeout",
+        "Define timeout",
+        FlagValue.type_int64(25),
+        std.testing.allocator,
+    ).markPersistent().build();
 
-    const verbose_flag = Flag.builderWithDefaultValue("verbose", "Display verbose output", FlagValue.type_boolean(false))
-        .markPersistent()
-        .build();
+    const verbose_flag = try Flag.builderWithDefaultValue(
+        "verbose",
+        "Display verbose output",
+        FlagValue.type_boolean(false),
+        std.testing.allocator,
+    ).markPersistent().build();
 
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();

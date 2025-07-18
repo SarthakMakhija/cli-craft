@@ -207,21 +207,24 @@ test "execute an executable command with arguments and flags" {
         runnable,
     );
     try command.addFlag(
-        Flag.builder(
+        try Flag.builder(
             "verbose",
             "Enable verbose output",
             FlagType.boolean,
+            std.testing.allocator,
         ).build(),
     );
-    try command.addFlag(Flag.builder(
+    try command.addFlag(try Flag.builder(
         "priority",
         "Enable priority",
         FlagType.boolean,
+        std.testing.allocator,
     ).build());
-    try command.addFlag(Flag.builderWithDefaultValue(
+    try command.addFlag(try Flag.builderWithDefaultValue(
         "timeout",
         "Define timeout",
         FlagValue.type_int64(25),
+        std.testing.allocator,
     ).withShortName('t').build());
 
     try cliCraft.addCommand(&command);

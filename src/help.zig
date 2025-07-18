@@ -185,9 +185,24 @@ test "print command help for a command that has no subcommands" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
-    try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
-    try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "verbose",
+        "describe verbosity",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "priority",
+        "describe priority",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "timeout",
+        "define timeout",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build(), &diagnostics);
     try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
@@ -228,9 +243,24 @@ test "print command help for a command with usage defined" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
-    try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
-    try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "verbose",
+        "describe verbosity",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "priority",
+        "describe priority",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "timeout",
+        "define timeout",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build(), &diagnostics);
     try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
@@ -271,7 +301,12 @@ test "print command help for a command with argument specification that has no s
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "verbose",
+        "describe verbosity",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build(), &diagnostics);
     try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
@@ -309,9 +344,24 @@ test "print command help for a command that has subcommands" {
     var flags = Flags.init(std.testing.allocator);
     defer flags.deinit();
 
-    try flags.addFlag(Flag.builder("verbose", "describe verbosity", FlagType.boolean).build(), &diagnostics);
-    try flags.addFlag(Flag.builder("priority", "describe priority", FlagType.int64).build(), &diagnostics);
-    try flags.addFlag(Flag.builder("timeout", "define timeout", FlagType.int64).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "verbose",
+        "describe verbosity",
+        FlagType.boolean,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "priority",
+        "describe priority",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build(), &diagnostics);
+    try flags.addFlag(try Flag.builder(
+        "timeout",
+        "define timeout",
+        FlagType.int64,
+        std.testing.allocator,
+    ).build(), &diagnostics);
     try flags.addHelp();
 
     var command_help = CommandHelp.init(command, output_stream);
