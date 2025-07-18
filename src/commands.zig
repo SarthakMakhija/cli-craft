@@ -50,6 +50,7 @@ pub const Command = struct {
     local_flags: Flags,
     persistent_flags: ?Flags = null,
     output_stream: OutputStream,
+    usage: ?[]const u8 = null,
 
     pub fn init(name: []const u8, description: []const u8, executable: CommandFn, output_stream: OutputStream, allocator: std.mem.Allocator) !Command {
         var local_flags = Flags.init(allocator);
@@ -99,6 +100,11 @@ pub const Command = struct {
     pub fn setArgumentSpecification(self: *Command, specification: ArgumentSpecification) !void {
         try self.logOnMutationFailureIfFrozen();
         self.argument_specification = specification;
+    }
+
+    pub fn setUsage(self: *Command, usage: []const u8) !void {
+        try self.logOnMutationFailureIfFrozen();
+        self.usage = usage;
     }
 
     pub fn addFlag(self: *Command, flag: Flag) !void {
@@ -571,6 +577,23 @@ test "attempt to set argument specification to frozen command" {
     try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.setArgumentSpecification(ArgumentSpecification.mustBeExact(2)));
 }
 
+test "attempt to set usage on frozen command" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var kubectl_command = try Command.initParent("kubectl", "kubernetes entry", OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    defer kubectl_command.deinit();
+
+    var get_command = try Command.init("get", "get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try kubectl_command.addSubcommand(&get_command);
+
+    try std.testing.expect(get_command.frozen);
+    try std.testing.expectError(CommandMutationError.CommandAlreadyFrozen, get_command.setUsage("get <object type>"));
+}
+
 test "attempt to add flag to frozen command" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
@@ -688,6 +711,22 @@ test "initialize an executable command with argument specification (2)" {
 
     try std.testing.expect(command.argument_specification != null);
     try std.testing.expectEqual(ArgumentSpecification.mustBeInEndInclusiveRange(1, 5), command.argument_specification.?);
+}
+
+test "initialize an executable command with usage" {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    var command = try Command.init("stringer", "manipulate strings", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try command.setUsage("stringer <string>");
+
+    defer command.deinit();
+
+    try std.testing.expect(command.usage != null);
+    try std.testing.expectEqualStrings("stringer <string>", command.usage.?);
 }
 
 test "is help command" {
