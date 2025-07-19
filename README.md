@@ -93,6 +93,10 @@ fn registerSubCommandAdd(cliCraft: CliCraft, command: *Command) !void {
 
 The examples are available [here](https://github.com/SarthakMakhija/cli-craft-examples).
 
+### Zig version
+
+This project is built with Zig version **0.14.1**.
+
 ### Features
 
 - **Command Parsing and Execution:** Efficiently interpret and execute commands based on user input.
