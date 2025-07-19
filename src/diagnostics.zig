@@ -83,7 +83,7 @@ pub const Diagnostics = struct {
                 output_stream.printError("Error: Command alias '{s}' already exists for the command '{s}'.\n\n", .{ context.alias, context.existing_command }) catch {};
             },
             .MissingCommandNameToExecute => |_| {
-                output_stream.printError("Error: No command was provided to execute.\n", .{}) catch {};
+                output_stream.printError("Error: No command was provided to execute.\n\n", .{}) catch {};
             },
             .CommandNotFound => |context| {
                 output_stream.printError("Error: Command '{s}' not found.\n\n", .{context.command}) catch {};
