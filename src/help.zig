@@ -47,7 +47,7 @@ pub const CommandHelp = struct {
     pub fn printHelp(self: CommandHelp, allocator: std.mem.Allocator, flags: *Flags) !void {
         try self.output_stream.print("{s} - {s}\n\n", .{ self.command.name, self.command.description });
         try self.write_usage(flags, allocator);
-        try self.write_aliases();
+        try self.write_aliases(allocator);
         try self.write_flags(flags, allocator);
         try self.write_argument_specification(allocator);
         try self.write_subcommands(allocator);
@@ -87,8 +87,8 @@ pub const CommandHelp = struct {
     }
 
     /// Writes the aliases for the command to the output stream, if any.
-    fn write_aliases(self: CommandHelp) !void {
-        var table = prettytable.Table.init(std.testing.allocator);
+    fn write_aliases(self: CommandHelp, allocator: std.mem.Allocator) !void {
+        var table = prettytable.Table.init(allocator);
         defer table.deinit();
 
         table.setFormat(prettytable.FORMAT_CLEAN);
@@ -104,7 +104,7 @@ pub const CommandHelp = struct {
     ///   allocator: The allocator for temporary string building within `flags.print`.
     fn write_flags(self: CommandHelp, flags: *Flags, allocator: std.mem.Allocator) !void {
         if (flags.flag_by_name.count() > 0) {
-            var table = prettytable.Table.init(std.testing.allocator);
+            var table = prettytable.Table.init(allocator);
             defer table.deinit();
 
             table.setFormat(prettytable.FORMAT_CLEAN);
@@ -132,7 +132,7 @@ pub const CommandHelp = struct {
     fn write_subcommands(self: CommandHelp, allocator: std.mem.Allocator) !void {
         switch (self.command.action) {
             .subcommands => |commands| {
-                var table = prettytable.Table.init(std.testing.allocator);
+                var table = prettytable.Table.init(allocator);
                 defer table.deinit();
 
                 table.setFormat(prettytable.FORMAT_CLEAN);
@@ -203,7 +203,7 @@ pub const CommandsHelp = struct {
     /// Parameters:
     ///   allocator: The allocator for temporary string building within `commands.print`.
     fn write_allcommands(self: CommandsHelp, allocator: std.mem.Allocator) !void {
-        var table = prettytable.Table.init(std.testing.allocator);
+        var table = prettytable.Table.init(allocator);
         defer table.deinit();
 
         table.setFormat(prettytable.FORMAT_CLEAN);
