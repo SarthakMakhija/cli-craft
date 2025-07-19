@@ -8,9 +8,43 @@
 
 CliCraft is a a **robust framework for building command-line interface (CLI) applications in Zig**. It provides a structured and idiomatic way to define commands, subcommands, flags, and arguments, ensuring a robust and user-friendly experience.
 
-### Getting Started
+### Adding cli-craft as a dependency
 
-Coming soon
+1. **Fetch the Dependency**
+
+Add *cli-craft* to your project's `build.zig.zon` file via `zig fetch`. You can specify a particular version or commit hash, for example, using the provided example which pins to a specific commit:
+```shell
+zig fetch https://github.com/SarthakMakhija/cli-craft/archive/6d1030db84fda7e85a5eb792b1120e358a88f0c3.tar.gz --save
+```
+
+2. **Configure build.zig**
+
+In your project's `build.zig`, you need to declare *cli-craft* as a dependency and then import its module into your executable, library, or test modules.
+
+First, inside your build function load the dependency:
+
+```zig
+// Load the cli-craft dependency
+const clicraft_dependency = b.dependency("cli_craft", .{});
+const clicraft_module = clicraft_dependency.module("cli_craft");
+```
+
+Then, add `cli_craft_module` as an import to your respective modules (e.g., for your executable and unit tests):
+
+```zig
+// For your executable (replace 'exe_module' with your actual module variable)
+exe_module.addImport("cli_craft", clicraft_module);
+
+// Similarly for your unit tests (replace 'lib_unit_tests' with your actual test runner variable)
+lib_unit_tests.root_module.addImport("cli_craft", clicraft_module);
+```
+
+After these steps, you can use
+
+```zig 
+const CliCraft = @import("cli_craft").CliCraft;
+```
+in your Zig source files.
 
 ### Usage
 
