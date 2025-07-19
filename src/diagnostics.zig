@@ -109,6 +109,9 @@ pub const Diagnostics = struct {
             .ArgumentsNotInEndInclusiveRange => |context| {
                 output_stream.printError("Error: Expected at least {d} argument(s), and at most {d} argument(s), received {d} arguments.\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
             },
+            .ExecutionError => |context| {
+                output_stream.printError("Error: Execution of command '{s}' failed, {any}.\n", .{ context.command, context.err }) catch {};
+            },
         };
     }
 
@@ -155,6 +158,7 @@ pub const Diagnostics = struct {
             .ArgumentsNotMatchingExpected => ArgumentValidationError.ArgumentsNotMatchingExpected,
             .ArgumentsNotInEndExclusiveRange => ArgumentValidationError.ArgumentsNotInEndExclusiveRange,
             .ArgumentsNotInEndInclusiveRange => ArgumentValidationError.ArgumentsNotInEndInclusiveRange,
+            .ExecutionError => CommandErrors.RunnableExecutionFailed,
         };
     }
 };
@@ -300,5 +304,10 @@ pub const DiagnosticType = union(enum) {
         actual_arguments: usize,
         minimum_arguments: usize,
         maximum_arguments: usize,
+    },
+    /// Indicates an error during execution of a command.
+    ExecutionError: struct {
+        command: []const u8,
+        err: anyerror,
     },
 };

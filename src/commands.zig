@@ -51,6 +51,8 @@ pub const CommandExecutionError = error{
     MissingCommandNameToExecute,
     /// A specified command was not found.
     CommandNotFound,
+    /// An error while executing the runnable function.
+    RunnableExecutionFailed
 };
 
 /// A union of all possible errors related to command operations.
@@ -529,7 +531,7 @@ pub const Command = struct {
                 }
 
                 try all_flags.addFlagsWithDefaultValueTo(&parsed_flags);
-                executable_fn(parsed_flags, parsed_arguments.items) catch |err| {
+                self.invokeExecutable(executable_fn, parsed_flags, &parsed_arguments, diagnostics) catch |err| {
                     diagnostics.log_using(self.output_stream);
                     try self.printHelp(&all_flags);
                     return err;
@@ -552,6 +554,40 @@ pub const Command = struct {
                 return sub_command.executeInternal(arguments, &child_flags, &parsed_flags, diagnostics, allocator);
             },
         }
+    }
+
+    /// Invokes the command's executable function and handles any errors that arise during its execution.
+    ///
+    /// This function serves as a wrapper around the `CommandFn`. If the `executable_fn`
+    /// returns an error, this function catches it, reports it via the `Diagnostics` system
+    /// with context about the command, and then re-propagates the error.
+    ///
+    /// Parameters:
+    ///   self: The `Command` instance whose executable function is being invoked.
+    ///   executable_fn: The `CommandFn` (the actual function to run) to be called.
+    ///   parsed_flags: The `ParsedFlags` containing all flags parsed for this command.
+    ///   parsed_arguments: A pointer to the `std.ArrayList` containing positional arguments for the command.
+    ///   diagnostics: A pointer to the `Diagnostics` instance for reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on successful execution of `executable_fn`.
+    ///   Propagates an error if `executable_fn` returns an error, reporting it
+    ///   with diagnostic type `ExecutionError`.
+    fn invokeExecutable(
+        self: Command,
+        executable_fn: CommandFn,
+        parsed_flags: ParsedFlags,
+        parsed_arguments: *std.ArrayList([]const u8),
+        diagnostics: *Diagnostics,
+    ) !void {
+        executable_fn(parsed_flags, parsed_arguments.items) catch |err| {
+            return diagnostics.reportAndFail(.{
+                .ExecutionError = .{
+                    .command = self.name,
+                    .err = err
+                }
+            });
+        };
     }
 
     /// Merges flags from different sources into a target `Flags` collection.
@@ -1235,7 +1271,7 @@ var add_command_result: u8 = undefined;
 var get_command_result: []const u8 = undefined;
 var add_command_result_via_flags: i64 = undefined;
 
-test "execute an executable command which results in error" {
+test "execute an executable command which results in error trying to access an unregistered flag" {
     const runnable = struct {
         pub fn run(parsed_flags: ParsedFlags, _: CommandFnArguments) anyerror!void {
             const augend = try parsed_flags.getInt64("augend");
@@ -1265,7 +1301,7 @@ test "execute an executable command which results in error" {
     arguments.skipFirst();
 
     var diagnostics: Diagnostics = .{};
-    try std.testing.expectError(FlagErrors.FlagNotFound, command.execute(&arguments, &diagnostics, std.testing.allocator));
+    try std.testing.expectError(CommandErrors.RunnableExecutionFailed, command.execute(&arguments, &diagnostics, std.testing.allocator));
 }
 
 test "execute an executable command" {
