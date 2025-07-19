@@ -265,8 +265,9 @@ pub const CliCraft = struct {
     ///   `void` on successful execution, or an error if parsing or execution fails.
     pub fn execute(self: *CliCraft) !void {
         var arguments = Arguments.init();
-        var diagnostics: Diagnostics = .{};
+        arguments.skipFirst(); // Skip the first argument (the program name)
 
+        var diagnostics: Diagnostics = .{};
         try self.executeInternal(&arguments, &diagnostics);
     }
 
