@@ -421,5 +421,5 @@ test "execute a command with subcommand" {
     try cliCraft.addCommand(&kubectl_command);
     try cliCraft.executeWithArguments(&[_][]const u8{ "kubectl", "get", "pods" });
 
-    try std.testing.expectEqual(7, add_command_result);
+    try std.testing.expectEqualStrings("pods", get_command_result);
 }
