@@ -264,11 +264,12 @@ pub const CliCraft = struct {
     /// Returns:
     ///   `void` on successful execution, or an error if parsing or execution fails.
     pub fn execute(self: *CliCraft) !void {
+        var arguments = Arguments.init();
         var diagnostics: Diagnostics = .{};
 
         try self.commands.execute(
             self.options.application_description,
-            Arguments.init(),
+            &arguments,
             &diagnostics,
         );
     }
