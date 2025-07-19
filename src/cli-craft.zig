@@ -267,11 +267,7 @@ pub const CliCraft = struct {
         var arguments = Arguments.init();
         var diagnostics: Diagnostics = .{};
 
-        try self.commands.execute(
-            self.options.application_description,
-            &arguments,
-            &diagnostics,
-        );
+        try self.executeInternal(&arguments, &diagnostics);
     }
 
     /// Executes the command-line application using a custom slice of arguments.
@@ -288,12 +284,7 @@ pub const CliCraft = struct {
     pub fn executeWithArguments(self: *CliCraft, arguments: []const []const u8) !void {
         var command_line_arguments = try Arguments.initWithArgs(arguments);
         var diagnostics: Diagnostics = .{};
-
-        try self.commands.execute(
-            self.options.application_description,
-            &command_line_arguments,
-            &diagnostics,
-        );
+        try self.executeInternal(&command_line_arguments, &diagnostics);
     }
 
     /// Deinitializes the `CliCraft` instance, freeing all associated allocated memory.
@@ -302,6 +293,40 @@ pub const CliCraft = struct {
     /// to prevent memory leaks.
     pub fn deinit(self: *CliCraft) void {
         self.commands.deinit();
+    }
+
+    /// Internal execution method for the `CliCraft` application.
+    ///
+    /// This function delegates the core command execution to the `root_commands` collection.
+    /// It includes specific error handling for top-level command lookup failures
+    /// (`MissingCommandNameToExecute` and `CommandNotFound`), ensuring that a diagnostic
+    /// message is logged and the general application help is displayed in such cases.
+    /// Other errors are propagated upwards.
+    ///
+    /// Parameters:
+    ///   self: A pointer to the `CliCraft` instance.
+    ///   arguments: A pointer to the `Arguments` iterator containing the raw command-line input.
+    ///   diagnostics: A pointer to the `Diagnostics` instance used for recording and reporting errors.
+    ///
+    /// Returns:
+    ///   `void` on successful command execution.
+    ///   Propagates `CommandErrors.MissingCommandNameToExecute` if no command is provided.
+    ///   Propagates `CommandErrors.CommandNotFound` if the specified command is not found.
+    ///   Propagates any other error (`anyerror`) that might occur during command execution
+    ///   from lower levels of the CLI structure.
+    fn executeInternal(self: *CliCraft, arguments: *Arguments, diagnostics: *Diagnostics) !void {
+        self.commands.execute(
+            self.options.application_description,
+            arguments,
+            diagnostics,
+        ) catch |err| switch (err) {
+            CommandErrors.MissingCommandNameToExecute, CommandErrors.CommandNotFound => {
+                diagnostics.log_using(self.output_stream);
+                try self.commands.printHelp(self.options.application_description);
+                return err;
+            },
+            else => {},
+        };
     }
 };
 
@@ -312,6 +337,32 @@ test {
 
 var add_command_result: u8 = undefined;
 var get_command_result: []const u8 = undefined;
+
+test "execute an executable command with incorrect command" {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+    var writer = buffer.writer();
+
+    var cliCraft = try CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{
+        .writer = writer.any(),
+    }, .output_options = .{
+        .writer = writer.any(),
+    } });
+
+    defer cliCraft.deinit();
+
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            return;
+        }
+    }.run;
+
+    try cliCraft.addExecutableCommand("add", "adds numbers", runnable);
+    try std.testing.expectError(CommandErrors.CommandNotFound, cliCraft.executeWithArguments(&[_][]const u8{"sub"}));
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "add").? >= 0);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "adds numbers").? >= 0);
+}
 
 test "execute an executable command with arguments" {
     var cliCraft = try CliCraft.init(.{ .allocator = std.testing.allocator, .error_options = .{

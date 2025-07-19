@@ -736,14 +736,34 @@ pub const Commands = struct {
     /// Returns:
     ///   `void` on successful execution, or a `CommandExecutionError` if no command is provided or found.
     pub fn execute(self: Commands, application_description: ?[]const u8, arguments: *Arguments, diagnostics: *Diagnostics) !void {
-        const command_name_or_alias = arguments.next() orelse return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
-        const command = self.get(command_name_or_alias) orelse return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name_or_alias } });
+        const command_name_or_alias = arguments.next() orelse
+            return diagnostics.reportAndFail(.{ .MissingCommandNameToExecute = .{} });
+
+        const command = self.get(command_name_or_alias) orelse
+            return diagnostics.reportAndFail(.{ .CommandNotFound = .{ .command = command_name_or_alias } });
 
         if (command.isHelp()) {
-            const help = CommandsHelp.init(self, application_description, self.output_stream);
-            try help.printHelp(self.allocator);
+            try self.printHelp(application_description);
+            return;
         }
         return try command.execute(arguments, diagnostics, self.allocator);
+    }
+
+    /// Prints the general help message for the collection of commands.
+    ///
+    /// This method initializes a `CommandsHelp` instance and delegates the
+    /// task of printing the comprehensive help message, which typically includes
+    /// the application description, general usage, and a list of all available commands.
+    ///
+    /// Parameters:
+    ///   self: The `Commands` instance for which to print help.
+    ///   application_description: An optional string providing a high-level description of the application.
+    ///
+    /// Returns:
+    ///   `void` on successful printing, or an error if an I/O operation fails.
+    pub fn printHelp(self: Commands, application_description: ?[]const u8) !void {
+        const help = CommandsHelp.init(self, application_description, self.output_stream);
+        try help.printHelp(self.allocator);
     }
 
     /// Deinitializes the `Commands` collection, freeing all associated allocated memory.
