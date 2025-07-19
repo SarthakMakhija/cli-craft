@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     // This creates a "module", which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Every executable or library we compile will be based on one or more modules.
-    const lib_mod = b.createModule(.{
+    const lib_mod = b.addModule("cli_craft", .{
         .root_source_file = b.path("src/cli-craft.zig"),
         .target = target,
         .optimize = optimize,
