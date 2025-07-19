@@ -18,7 +18,7 @@ Coming soon
 
 ### Examples
 
-Coming soon
+The examples are available [here](https://github.com/SarthakMakhija/cli-craft-examples).
 
 ### Features
 
