@@ -83,6 +83,36 @@ pub const CommandAction = union(enum) {
         }
     }
 
+    /// Takes the ownership of the `CommandAction`'s internal state, transferring it.
+    ///
+    /// This function handles the ownership transfer based on the `CommandAction`'s union variant.
+    ///
+    /// - If the `CommandAction` is an `.executable` (a function pointer), there is no heap
+    ///   ownership to transfer, so a direct copy is returned.
+    /// - If the `CommandAction` is `.subcommands` (holding a `Commands` struct), it
+    ///   delegates the ownership transfer to the `Commands.take()` method, which handles
+    ///   recursively transferring ownership of its contained `Command` instances.
+    ///
+    /// Parameters:
+    ///   self: The pointer to the `CommandAction` instance from which the state will be taken.
+    ///         The original `self` instance's internal state will be managed by this function's
+    ///         logic or by delegated `take()` calls.
+    ///
+    /// Returns:
+    ///   A new `CommandAction` instance containing a deep copy of the original's state.
+    ///   This returned instance now holds ownership of any dynamically allocated data.
+    pub fn take(self: *CommandAction) CommandAction {
+        switch (self.*) {
+            .executable => {
+                return self.*; // For executable, it's just a function pointer, no heap ownership to transfer
+            },
+            .subcommands => |*sub_commands_instance| {
+                // Take the Commands struct itself
+                return .{ .subcommands = sub_commands_instance.take() };
+            },
+        }
+    }
+
     /// Deinitializes the `CommandAction`, freeing any associated resources.
     ///
     /// If the action is `subcommands`, it will deinitialize the internal `Commands` collection.

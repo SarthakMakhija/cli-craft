@@ -201,6 +201,35 @@ pub const Flags = struct {
         }
     }
 
+    /// Takes the ownership of the Flags struct, transferring its internal state.
+    ///
+    /// This function creates a copy of the current `Flags` struct's state and then
+    /// nullifies the internal hash map pointers of the original `self`. This prevents
+    /// double-free errors when `self.deinit()` is called later on the original instance,
+    /// as the ownership of the hash map data is effectively transferred to the returned copy.
+    /// The `allocator` field is not owned by the `Flags` struct and is therefore not affected.
+    ///
+    /// Parameters:
+    ///   self: The pointer to the `Flags` instance from which the state will be taken.
+    ///         The original `self` instance will have its internal hash map pointers
+    ///         set to empty, making it safe for subsequent deinitialization.
+    ///
+    /// Returns:
+    ///   A new `Flags` struct instance containing a deep copy of the original
+    ///   `Flags`'s state before its internal pointers were nullified. This returned
+    ///   instance now holds ownership of the copied hash map data.
+    pub fn take(self: *Flags) Flags {
+        const result = self.*; // Create a copy of the Flags struct's current state
+
+        // Nullify the internal hash map pointers of the original `self`
+        // to prevent double-free when `self.deinit()` is called later.
+        self.flag_by_name.unmanaged = std.StringHashMap(Flag).Unmanaged.empty;
+        self.short_name_to_long_name.unmanaged = std.AutoHashMap(u8, []const u8).Unmanaged.empty;
+
+        // The `allocator` field is not owned by the Flags struct, so it doesn't need to be taken or nullified.
+        return result;
+    }
+
     /// Retrieves a `Flag` definition by its long name or short name.
     ///
     /// Parameters:

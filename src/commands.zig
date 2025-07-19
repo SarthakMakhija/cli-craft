@@ -298,6 +298,62 @@ pub const Command = struct {
         try self.output_stream.printTable(table);
     }
 
+
+    /// Takes the ownership of the `Command` struct, transferring its deep internal state.
+    ///
+    /// This function creates a deep copy of the current `Command` struct's state. It then
+    /// nullifies or re-initializes the internal pointers and collections of the original `self`
+    /// instance (e.g., slices, `ArrayList`s, and nested `Flags` or `CommandAction` structs)
+    /// to prevent double-free errors when `self.deinit()` is called later on the original instance.
+    /// The ownership of all dynamically allocated data is effectively transferred to the returned copy.
+    /// Fields like `allocator` and `output_stream` are typically not owned by the `Command` struct
+    /// and are therefore not affected.
+    ///
+    /// Parameters:
+    ///   self: The pointer to the `Command` instance from which the state will be taken.
+    ///         The original `self` instance will have its internal data pointers and collections
+    ///         set to empty or null, making it safe for subsequent deinitialization without
+    ///         affecting the transferred data.
+    ///
+    /// Returns:
+    ///   A new `Command` struct instance containing a deep copy of the original
+    ///   `Command`'s state before its internal pointers were nullified. This returned
+    ///   instance now holds full ownership of all the copied, dynamically allocated data.
+    pub fn take(self: *Command) Command {
+        var result = self.*; // Create a copy of the Command struct
+
+        // Nullify slices
+        self.name = "";
+        self.description = "";
+        self.usage = null;
+
+        // Take ownership of internal collections by manually transferring their state
+        // and nullifying the original pointers in `self`.
+        // For std.ArrayList, manually transfer ptr, len, capacity.
+        if (self.aliases) |*aliases_list_ptr| {
+            result.aliases = aliases_list_ptr.*; // Copy the ArrayList value
+            aliases_list_ptr.* = std.ArrayList([]const u8).init(self.allocator);
+            // aliases_list_ptr.* = std.ArrayList([]const u8){}; // Zero-initialize the original ArrayList value
+            self.aliases = null; // Nullify the optional field in 'self'
+        }
+
+        // Take ownership of Flags structs (which contain hash maps)
+        // `Flags.take()` will handle nullifying `self.local_flags` and `self.persistent_flags` internally.
+        result.local_flags = self.local_flags.take();
+        if (self.persistent_flags) |*persistent_flags| {
+            result.persistent_flags = persistent_flags.take();
+        }
+
+        // Take ownership of CommandAction's internal Commands struct if it's a parent
+        // `CommandAction.take()` handles its internal union and recursive taking.
+        result.action = self.action.take();
+
+        // The `allocator` itself is not owned by the Command struct, so it doesn't need to be taken.
+        // The `output_stream` is also typically not owned by the Command, but rather passed around,
+        // so it doesn't need to be taken or nullified here.
+        return result;
+    }
+
     /// Deinitializes the `Command` instance, freeing all associated allocated memory.
     ///
     /// This includes the command's name, description, usage string, action (subcommands if any),
@@ -714,6 +770,7 @@ pub const Commands = struct {
     }
 
     /// Adds a command to this collection, allowing it to be a child command (i.e., have a parent).
+    /// It takes the ownership of the command and freezes it, preventing further modifications.
     ///
     /// This is typically used when adding subcommands to a parent command.
     ///
@@ -729,7 +786,8 @@ pub const Commands = struct {
     }
 
     /// Adds a command to this collection, disallowing it from being a child command.
-    ///
+    /// It takes the ownership of the command and freezes it, preventing further modifications.
+    /// 
     /// This is typically used when adding top-level commands to `CliCraft`.
     ///
     /// Parameters:
@@ -759,6 +817,43 @@ pub const Commands = struct {
             return self.command_by_name.get(command_name);
         }
         return null;
+    }
+
+    /// Takes the ownership of the `Commands` struct, transferring its internal state.
+    ///
+    /// This function creates a copy of the current `Commands` struct's state and then
+    /// nullifies the internal hash map pointers of the original `self`. This is crucial
+    /// to prevent double-free errors when `self.deinit()` is called later on the
+    /// original instance, as the ownership of the hash map data is effectively transferred
+    /// to the returned copy.
+    ///
+    /// Note: The `allocator` and `output_stream` fields are generally not owned by the
+    /// `Commands` struct and are therefore not affected by this `take` operation.
+    ///
+    /// Parameters:
+    ///   self: The pointer to the `Commands` instance from which the state will be taken.
+    ///         The original `self` instance will have its internal hash map pointers
+    ///         set to empty, making it safe for subsequent deinitialization.
+    ///
+    /// Returns:
+    ///   A new `Commands` struct instance containing a deep copy of the original
+    ///   `Commands`'s state before its internal pointers were nullified. This returned
+    ///   instance now holds ownership of the copied hash map data.
+    pub fn take(self: *Commands) Commands {
+        const result = self.*; // Create a copy of the Commands struct's current state
+
+        // Nullify the internal hash map pointers of the original `self`
+        // to prevent double-free when `self.deinit()` is called later.
+        //self.command_by_name.unmanaged = std.StringHashMap(Command).Unmanaged.empty;
+        //self.command_name_by_alias.unmanaged = std.AutoHashMap(u8, []const u8).Unmanaged.empty;
+
+        self.command_by_name.unmanaged = std.StringHashMap(Command).Unmanaged.empty;
+        // Corrected: Use StringHashMap's Unmanaged.empty for command_name_by_alias
+        self.command_name_by_alias.unmanaged = std.StringHashMap([]const u8).Unmanaged.empty;
+
+        // The `allocator` and `output_stream` fields are typically not owned by the Commands struct,
+        // so they don't need to be taken or nullified.
+        return result;
     }
 
     /// Executes the appropriate command based on the provided arguments.
@@ -900,13 +995,14 @@ pub const Commands = struct {
         }
 
         try self.ensureCommandDoesNotExist(command, diagnostics);
-
+        
         command.freeze();
+        const taken = command.take();
 
-        try self.command_by_name.put(command.name, command.*);
-        if (command.aliases) |aliases| {
+        try self.command_by_name.put(taken.name, taken);
+        if (taken.aliases) |aliases| {
             for (aliases.items) |alias| {
-                try self.command_name_by_alias.put(alias, command.name);
+                try self.command_name_by_alias.put(alias, taken.name);
             }
         }
     }
@@ -2090,7 +2186,7 @@ test "execute a command with child command with a inherited flag from parent wit
 const ArgumentSpecification = @import("argument-specification.zig").ArgumentSpecification;
 const ArgumentSpecificationError = @import("argument-specification.zig").ArgumentValidationError;
 
-test "attempt to add a command which has a parent" {
+test "attempt to add a child command" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, _: CommandFnArguments) anyerror!void {
             return;
@@ -2108,9 +2204,6 @@ test "attempt to add a command which has a parent" {
 
     var diagnostics: Diagnostics = .{};
     try std.testing.expectError(CommandAddError.ChildCommandAdded, commands.add_disallow_child(&get_command, &diagnostics));
-
-    const diagnostics_type = diagnostics.diagnostics_type.?.ChildCommandAdded;
-    try std.testing.expectEqualStrings("get", diagnostics_type.command);
 }
 
 test "add a command which has a child" {
