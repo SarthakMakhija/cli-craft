@@ -83,7 +83,7 @@ pub const CommandHelp = struct {
                 },
             }
         }
-        try self.output_stream.print("{s} \n", .{usage.items});
+        try self.output_stream.print("{s} \n\n", .{usage.items});
     }
 
     /// Writes the aliases for the command to the output stream, if any.
