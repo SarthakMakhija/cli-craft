@@ -14,7 +14,46 @@ Coming soon
 
 ### Usage
 
-Coming soon
+```zig
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    var cliCraft = try CliCraft.init(.{ .allocator = gpa.allocator(), .error_options = .{
+        .writer = std.io.getStdErr().writer().any(),
+    }, .output_options = .{
+        .writer = std.io.getStdOut().writer().any(),
+    } });
+
+    defer cliCraft.deinit();
+
+    var command = try cliCraft.newParentCommand("arithmetic", "Performs arithmetic operations");
+    try command.setAliases(&[_]CommandAlias{"math"});
+
+    try registerSubCommandAdd(cliCraft, &command);
+    try cliCraft.addCommand(&command);
+
+    cliCraft.execute() catch {};
+}
+
+fn registerSubCommandAdd(cliCraft: CliCraft, command: *Command) !void {
+    const runnable = struct {
+        pub fn run(_: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
+            var sum: u8 = 0;
+            for (arguments) |arg| {
+                sum += try std.fmt.parseInt(u8, arg, 10);
+            }
+            std.debug.print("Sum = {d} \n", .{sum});
+            return;
+        }
+    }.run;
+
+    var subcommand = try cliCraft.newExecutableCommand("add", "Adds N arguments", runnable);
+    try subcommand.setAliases(&[_]CommandAlias{"plus"});
+
+    try command.addSubcommand(&subcommand);
+}
+```
 
 ### Examples
 
