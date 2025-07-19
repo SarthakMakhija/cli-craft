@@ -195,7 +195,7 @@ pub const CommandsHelp = struct {
         defer usage.deinit();
 
         try usage.writer().print("Usage: [app-name] [command] [flags] [arguments]", .{});
-        try self.output_stream.print("\n", .{});
+        try self.output_stream.print("{s} \n\n", .{usage.items});
     }
 
     /// Writes a table of all available commands to the output stream.
@@ -475,6 +475,7 @@ test "print all commands" {
 
     try commands_help.printHelp(std.testing.allocator);
 
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "Usage: [app-name] [command] [flags] [arguments]").? >= 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "stringer").? >= 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "str").? > 0);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "strm").? > 0);
