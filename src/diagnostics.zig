@@ -26,91 +26,91 @@ pub const Diagnostics = struct {
     pub fn log_using(self: Diagnostics, output_stream: OutputStream) void {
         if (self.diagnostics_type) |diagnostics_type| switch (diagnostics_type) {
             .FlagNameAlreadyExists => |context| {
-                output_stream.printError("Error: Flag name '{s}' already exists.\n", .{context.flag_name}) catch {};
+                output_stream.printError("Error: Flag name '{s}' already exists.\n\n", .{context.flag_name}) catch {};
             },
             .FlagShortNameAlreadyExists => |context| {
-                output_stream.printError("Error: Flag short name '{c}' already exists for flag '{s}'.\n", .{ context.short_name, context.existing_flag_name }) catch {};
+                output_stream.printError("Error: Flag short name '{c}' already exists for flag '{s}'.\n\n", .{ context.short_name, context.existing_flag_name }) catch {};
             },
             .FlagShortNameMergeConflict => |context| {
-                output_stream.printError("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name }) catch {};
+                output_stream.printError("Error: During flag merge, short name '{c}' for flag '{s}' conflicts with existing flag '{s}'. This is an ambiguous CLI definition.\n\n", .{ context.short_name, context.flag_name, context.conflicting_flag_name }) catch {};
             },
             .FlagConflictSameLongNameDifferentShortName => |context| {
-                output_stream.printError("Error: Flag conflict detected, same long name but different short name, command: '{s}', subcommand: '{s}', flag '{s}', short name: '{c}', other short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.short_name, context.other_short_name }) catch {};
+                output_stream.printError("Error: Flag conflict detected, same long name but different short name, command: '{s}', subcommand: '{s}', flag '{s}', short name: '{c}', other short name: '{c}'. \n\n", .{ context.command, context.subcommand, context.flag_name, context.short_name, context.other_short_name }) catch {};
             },
             .FlagConflictSameShortNameDifferentLongName => |context| {
-                output_stream.printError("Error: Flag conflict detected, same short name but different long name, command: '{s}', subcommand: '{s}', flag '{s}', other flag name: '{s}', short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.other_flag_name, context.short_name }) catch {};
+                output_stream.printError("Error: Flag conflict detected, same short name but different long name, command: '{s}', subcommand: '{s}', flag '{s}', other flag name: '{s}', short name: '{c}'. \n\n", .{ context.command, context.subcommand, context.flag_name, context.other_flag_name, context.short_name }) catch {};
             },
             .FlagConflictMissingShortName => |context| {
-                output_stream.printError("Error: Flag conflict detected, missing short name, command: '{s}', subcommand: '{s}', flag '{s}', expected short name: '{c}'. \n", .{ context.command, context.subcommand, context.flag_name, context.expected_short_name }) catch {};
+                output_stream.printError("Error: Flag conflict detected, missing short name, command: '{s}', subcommand: '{s}', flag '{s}', expected short name: '{c}'. \n\n", .{ context.command, context.subcommand, context.flag_name, context.expected_short_name }) catch {};
             },
             .InvalidBoolean => |context| {
-                output_stream.printError("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n", .{ context.value, context.flag_name }) catch {};
+                output_stream.printError("Error: Invalid boolean value '{s}' for flag '{s}'. Expected 'true' or 'false'.\n\n", .{ context.value, context.flag_name }) catch {};
             },
             .InvalidInteger => |context| {
-                output_stream.printError("Error: Invalid integer value '{s}' for flag '{s}'. Expected a number.\n", .{ context.value, context.flag_name }) catch {};
+                output_stream.printError("Error: Invalid integer value '{s}' for flag '{s}'. Expected a number.\n\n", .{ context.value, context.flag_name }) catch {};
             },
             .FlagNotFound => |context| {
-                output_stream.printError("Error: Flag '{s}' not found.\n", .{context.flag_name}) catch {};
+                output_stream.printError("Error: Flag '{s}' not found.\n\n", .{context.flag_name}) catch {};
             },
             .FlagTypeMismatch => |context| {
-                output_stream.printError("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n", .{ context.flag_name, @tagName(context.expected_type), context.value }) catch {};
+                output_stream.printError("Error: Type mismatch for flag '{s}'. Expected {s}, but value provided was '{s}'.\n\n", .{ context.flag_name, @tagName(context.expected_type), context.value }) catch {};
             },
             .NoFlagsAddedToCommand => |context| {
-                output_stream.printError("Error: No flags added to the command but found the flag '{s}'.\n", .{context.parsed_flag}) catch {};
+                output_stream.printError("Error: No flags added to the command but found the flag '{s}'.\n\n", .{context.parsed_flag}) catch {};
             },
             .NoFlagValueProvided => |context| {
-                output_stream.printError("Error: No flag value was provided for the flag '{s}'.\n", .{context.parsed_flag}) catch {};
+                output_stream.printError("Error: No flag value was provided for the flag '{s}'.\n\n", .{context.parsed_flag}) catch {};
             },
             .NoSubcommandProvided => |context| {
-                output_stream.printError("Error: No subcommand provided for the command '{s}'.\n", .{context.command}) catch {};
+                output_stream.printError("Error: No subcommand provided for the command '{s}'.\n\n", .{context.command}) catch {};
             },
             .SubcommandNotAddedToParentCommand => |context| {
-                output_stream.printError("Error: Subcommand '{s}' not added to the parent command '{s}'.\n", .{ context.subcommand, context.command }) catch {};
+                output_stream.printError("Error: Subcommand '{s}' not added to the parent command '{s}'.\n\n", .{ context.subcommand, context.command }) catch {};
             },
             .SubCommandNameSameAsParent => |context| {
-                output_stream.printError("Error: Subcommand name '{s}' is same as the parent command name.\n", .{context.command}) catch {};
+                output_stream.printError("Error: Subcommand name '{s}' is same as the parent command name.\n\n", .{context.command}) catch {};
             },
             .SubCommandAddedToExecutable => |context| {
-                output_stream.printError("Error: Subcommand '{s}' added to an executable command '{s}'.\n", .{ context.command, context.subcommand }) catch {};
+                output_stream.printError("Error: Subcommand '{s}' added to an executable command '{s}'.\n\n", .{ context.command, context.subcommand }) catch {};
             },
             .ChildCommandAdded => |context| {
-                output_stream.printError("Error: Child command command '{s}' added to Cli-Craft.\n", .{context.command}) catch {};
+                output_stream.printError("Error: Child command command '{s}' added to Cli-Craft.\n\n", .{context.command}) catch {};
             },
             .CommandNameAlreadyExists => |context| {
-                output_stream.printError("Error: Command name '{s}' already exists.\n", .{context.command}) catch {};
+                output_stream.printError("Error: Command name '{s}' already exists.\n\n", .{context.command}) catch {};
             },
             .CommandAliasAlreadyExists => |context| {
-                output_stream.printError("Error: Command alias '{s}' already exists for the command '{s}'.\n", .{ context.alias, context.existing_command }) catch {};
+                output_stream.printError("Error: Command alias '{s}' already exists for the command '{s}'.\n\n", .{ context.alias, context.existing_command }) catch {};
             },
             .MissingCommandNameToExecute => |_| {
-                output_stream.printError("Error: No command was provided to execute.\n", .{}) catch {};
+                output_stream.printError("Error: No command was provided to execute.\n\n", .{}) catch {};
             },
             .CommandNotFound => |context| {
-                output_stream.printError("Error: Command '{s}' not found.\n", .{context.command}) catch {};
+                output_stream.printError("Error: Command '{s}' not found.\n\n", .{context.command}) catch {};
             },
             .CommandAlreadyFrozen => |context| {
-                output_stream.printError("Error: Command '{s}' is already frozen. It cannot be modified after being added as a subcommand or to the top-level CLI.\n", .{context.command}) catch {};
+                output_stream.printError("Error: Command '{s}' is already frozen. It cannot be modified after being added as a subcommand or to the top-level CLI.\n\n", .{context.command}) catch {};
             },
             .ArgumentsNotEqualToZero => |context| {
-                output_stream.printError("Error: Expected zero argument, received {d} argument(s).\n", .{context.actual_arguments}) catch {};
+                output_stream.printError("Error: Expected zero argument, received {d} argument(s).\n\n", .{context.actual_arguments}) catch {};
             },
             .ArgumentsLessThanMinimum => |context| {
-                output_stream.printError("Error: Expected minimum of {d} argument(s), received {d} argument(s).\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
+                output_stream.printError("Error: Expected minimum of {d} argument(s), received {d} argument(s).\n\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
             },
             .ArgumentsGreaterThanMaximum => |context| {
-                output_stream.printError("Error: Expected maximum of {d} argument(s), received {d} argument(s).\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
+                output_stream.printError("Error: Expected maximum of {d} argument(s), received {d} argument(s).\n\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
             },
             .ArgumentsNotMatchingExpected => |context| {
-                output_stream.printError("Error: Expected {d} argument(s), received {d} argument(s).\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
+                output_stream.printError("Error: Expected {d} argument(s), received {d} argument(s).\n\n", .{ context.expected_arguments, context.actual_arguments }) catch {};
             },
             .ArgumentsNotInEndExclusiveRange => |context| {
-                output_stream.printError("Error: Expected at least {d} argument(s), but less than {d} argument(s), received {d} arguments.\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
+                output_stream.printError("Error: Expected at least {d} argument(s), but less than {d} argument(s), received {d} arguments.\n\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
             },
             .ArgumentsNotInEndInclusiveRange => |context| {
-                output_stream.printError("Error: Expected at least {d} argument(s), and at most {d} argument(s), received {d} arguments.\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
+                output_stream.printError("Error: Expected at least {d} argument(s), and at most {d} argument(s), received {d} arguments.\n\n", .{ context.minimum_arguments, context.maximum_arguments, context.actual_arguments }) catch {};
             },
             .ExecutionError => |context| {
-                output_stream.printError("Error: Execution of command '{s}' failed, {any}.\n", .{ context.command, context.err }) catch {};
+                output_stream.printError("Error: Execution of command '{s}' failed, {any}.\n\n", .{ context.command, context.err }) catch {};
             },
         };
     }
