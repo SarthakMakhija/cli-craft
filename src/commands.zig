@@ -529,7 +529,11 @@ pub const Command = struct {
                 }
 
                 try all_flags.addFlagsWithDefaultValueTo(&parsed_flags);
-                return executable_fn(parsed_flags, parsed_arguments.items);
+                executable_fn(parsed_flags, parsed_arguments.items) catch |err| {
+                    diagnostics.log_using(self.output_stream);
+                    try self.printHelp(&all_flags);
+                    return err;
+                };
             },
             .subcommands => |sub_commands| {
                 const sub_command = self
@@ -1231,7 +1235,40 @@ var add_command_result: u8 = undefined;
 var get_command_result: []const u8 = undefined;
 var add_command_result_via_flags: i64 = undefined;
 
-test "execute a command with an executable command" {
+test "execute an executable command which results in error" {
+    const runnable = struct {
+        pub fn run(parsed_flags: ParsedFlags, _: CommandFnArguments) anyerror!void {
+            const augend = try parsed_flags.getInt64("augend");
+            const addend = try parsed_flags.getInt64("addend");
+
+            _ = augend + addend;
+            return;
+        }
+    }.run;
+
+    var command = try Command.init("add", "add numbers", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
+        "augend",
+        "The first number to add",
+        FlagType.int64,
+    ).build());
+
+    try command.addFlag(try FlagFactory.init(std.testing.allocator).builder(
+        "addend",
+        "The second number to add",
+        FlagType.int64,
+    ).build());
+
+    defer command.deinit();
+
+    var arguments = try Arguments.initWithArgs(&[_][]const u8{"add"});
+    arguments.skipFirst();
+
+    var diagnostics: Diagnostics = .{};
+    try std.testing.expectError(FlagErrors.FlagNotFound, command.execute(&arguments, &diagnostics, std.testing.allocator));
+}
+
+test "execute an executable command" {
     const runnable = struct {
         pub fn run(_: ParsedFlags, arguments: CommandFnArguments) anyerror!void {
             const augend = try std.fmt.parseInt(u8, arguments[0], 10);
