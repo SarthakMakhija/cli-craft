@@ -102,14 +102,17 @@ This project is built with Zig version **0.14.1**.
 - **Command Parsing and Execution:** Efficiently interpret and execute commands based on user input.
 - **Parent and Child Commands:** Organize your CLI with parent and child commands, enabling clean, nested subcommands.
 - **Command Aliases:** Support for alternative command names to enhance user convenience.
-- **Flags:** Full support for defining and parsing command-line flags.
-- **Local and Persistent Flags:** Distinguish between flags scoped to a specific command and those inherited by subcommands.
-- **Typed Flags:** Built-in support for `int64`, `bool`, and `string` types.
-- **Short Names for Flags:** Support for single-character aliases (e.g., `-v` for `--verbose`).
+-  **Flags**:
+    * Full support for defining and parsing command-line flags.
+    * **Local and Persistent Flags**: Distinguish between flags scoped to a specific command and those inherited by subcommands.
+    * **Early Conflict Detection**: `cli-craft` performs early detection of potential flag conflicts between parent and child commands, ensuring a well-defined CLI structure.
+    * **Typed Flags**: Built-in support for `int64`, `bool`, and `string` types.
+    * **Short Names for Flags**: Support for single-character aliases (e.g., `-v` for `--verbose`).
+    * **Boolean Flags with and without Value**: Handle both implicit (`--verbose`) and explicit (`--verbose true`) boolean flag values.
+    * **Flags with Default Values**: Assign default values to flags, which are used if the flag is not provided by the user.
 - **Arguments:** Define and validate positional arguments for your commands.
 - **Argument Specification:** Specify argument rules such as exact, minimum, or maximum count.
 - **Boolean Flags with and without Value:** Handle both implicit (`--verbose`) and explicit (`--verbose true`) boolean flag values.
-- **Flags with Default Values:** Assign default values to flags, which are used if the flag is not provided by the user.
 - **Help Command:** Automatically generated help command.
 - **Help Flag:** Automatic `--help` or `-h` flag for each command and subcommand.
 - **Robust and Tested:** Backed by extensive testing to ensure correctness and reliability..
@@ -118,6 +121,7 @@ This project is built with Zig version **0.14.1**.
 
 - Does **not** support `--flag=value` syntax; only space-separated values (`--flag value`) are accepted.
 - Does **not** support combined short flags (e.g., `-vpf`); each flag must be written separately (`-v -p -f`).
+- **Limited type support** for flags.
 
 ### Contributing
 
