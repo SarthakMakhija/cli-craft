@@ -14,7 +14,7 @@ CliCraft is a a **robust framework for building command-line interface (CLI) app
 
 Add *cli-craft* to your project's `build.zig.zon` file via `zig fetch`. You can specify a particular version or commit hash, for example, using the provided example which pins to a specific commit:
 ```shell
-zig fetch https://github.com/SarthakMakhija/cli-craft/archive/6d1030db84fda7e85a5eb792b1120e358a88f0c3.tar.gz --save
+zig fetch https://github.com/SarthakMakhija/cli-craft/archive/7121ebb4f33ba2a471a46a0a41679c2f7b2ac0f6.tar.gz --save
 ```
 
 2. **Configure build.zig**
