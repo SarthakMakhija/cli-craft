@@ -23,6 +23,9 @@ const prettytable = @import("prettytable");
 
 /// The standard name for the built-in help command.
 pub const HelpCommandName = "help";
+/// The description for help command.
+pub const HelpCommandDescription = "Display help for commands";
+
 
 /// Errors that can occur when adding commands or subcommands to the CLI structure.
 pub const CommandAddError = error{
@@ -765,8 +768,8 @@ pub const Commands = struct {
             }
         }.run;
 
-        const command = try Command.init("help", "Displays system help", runnable, self.output_stream, self.allocator);
-        try self.command_by_name.put("help", command);
+        const command = try Command.init(HelpCommandName, HelpCommandDescription, runnable, self.output_stream, self.allocator);
+        try self.command_by_name.put(HelpCommandName, command);
     }
 
     /// Adds a command to this collection, allowing it to be a child command (i.e., have a parent).

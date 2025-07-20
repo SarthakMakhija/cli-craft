@@ -13,6 +13,7 @@ const Flag = @import("flags.zig").Flag;
 const FlagType = @import("flags.zig").FlagType;
 const ParsedFlags = @import("flags.zig").ParsedFlags;
 const HelpFlagDisplayLabel = @import("flags.zig").HelpFlagDisplayLabel;
+const HelpFlagDescription = @import("flags.zig").HelpFlagDescription;
 
 const OutputStream = @import("stream.zig").OutputStream;
 const Diagnostics = @import("diagnostics.zig").Diagnostics;
@@ -223,7 +224,7 @@ pub const CommandsHelp = struct {
         table.setFormat(prettytable.FORMAT_CLEAN);
 
         try self.output_stream.printAll("Global flags:\n");
-        try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, "Show help for command" });
+        try table.addRow(&[_][]const u8{ HelpFlagDisplayLabel, HelpFlagDescription });
 
         try self.output_stream.printTable(&table);
         try self.output_stream.print("\n", .{});

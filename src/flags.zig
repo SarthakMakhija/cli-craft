@@ -12,6 +12,8 @@ pub const HelpFlagName = "help";
 pub const HelpFlagShortName = "h";
 /// The display label used for the help flag in help messages.
 pub const HelpFlagDisplayLabel = "--help, -h";
+/// The flag description for the help flag.
+pub const HelpFlagDescription = "Display help for command";
 
 /// Errors that can occur when adding or managing flags.
 pub const FlagAddError = error{
