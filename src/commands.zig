@@ -1541,9 +1541,9 @@ test "attempt to execute a command with an unregistered flag and it should print
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
 
-    var command = try Command.init("add", "add numbers", runnable, ouptut_stream, std.testing.allocator);
+    var command = try Command.init("add", "add numbers", runnable, output_stream, std.testing.allocator);
     defer command.deinit();
 
     var diagnostics: Diagnostics = .{};
@@ -1570,9 +1570,9 @@ test "attempt to execute a command with invalid argument specification and it sh
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
 
-    var command = try Command.init("add", "add numbers", runnable, ouptut_stream, std.testing.allocator);
+    var command = try Command.init("add", "add numbers", runnable, output_stream, std.testing.allocator);
     try command.setArgumentSpecification(ArgumentSpecification.mustBeExact(2));
     defer command.deinit();
 
@@ -1601,9 +1601,9 @@ test "attempt to execute a command with incorrect child command and it should pr
     defer buffer.deinit();
 
     var writer = buffer.writer();
-    const ouptut_stream = OutputStream.initStdErrWriter(writer.any());
+    const output_stream = OutputStream.initStdErrWriter(writer.any());
 
-    var kubectl_command = try Command.initParent("kubectl", "Kubernetes entrypoint", ouptut_stream, std.testing.allocator);
+    var kubectl_command = try Command.initParent("kubectl", "Kubernetes entrypoint", output_stream, std.testing.allocator);
     defer kubectl_command.deinit();
 
     var get_command = try Command.init("get", "Get objects", runnable, OutputStream.initNoOperationOutputStream(), std.testing.allocator);
